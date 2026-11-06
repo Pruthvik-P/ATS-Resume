@@ -1,0 +1,154 @@
+"use client";
+
+import { useState } from "react";
+
+export function HeroScan() {
+  const [run, setRun] = useState(0);
+
+  return (
+    <div className="relative mx-auto w-full max-w-[520px] lg:mx-0">
+      {/* Ghost sheet behind the proof */}
+      <div
+        aria-hidden="true"
+        className="absolute -right-2.5 top-4 h-full w-full border border-line bg-bg/70"
+      />
+
+      <div className="relative border border-ink/15 bg-ink shadow-[0_30px_80px_-30px_rgba(15,20,15,0.55)]">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-slate-400">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+            <span className="truncate">compiled</span>
+            <span className="text-slate-600">/</span>
+            <span className="truncate text-slate-300">jane_doe.tex</span>
+          </div>
+          <span className="shrink-0 border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 font-data text-[9px] font-medium text-amber-300">
+            3 parse issues
+          </span>
+        </div>
+
+        {/* The sheet */}
+        <div className="relative overflow-hidden bg-[#0C120D] p-2.5 sm:p-3.5">
+          <div className="relative overflow-hidden bg-paper px-4 py-5 text-ink sm:px-6 sm:py-6">
+            <div
+              aria-hidden="true"
+              className="dot-grid pointer-events-none absolute inset-0 opacity-30"
+            />
+
+            <div key={run} className="scan-beam" aria-hidden="true" />
+
+            <div className="relative">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-display text-[1.05rem] font-bold leading-tight tracking-[-0.02em]">
+                    Jane A. Developer
+                  </p>
+                  <p className="mt-1 font-data text-[8px] leading-relaxed text-muted">
+                    Senior Software Engineer · jane@example.com · (555) 123-4567
+                  </p>
+                </div>
+                <div className="shrink-0 border border-ink/15 px-2 py-1 text-right">
+                  <p className="font-data text-[7px] uppercase tracking-[0.18em] text-muted">
+                    match
+                  </p>
+                  <p className="font-display text-[1.55rem] font-bold leading-none">
+                    78
+                    <span className="font-data text-[8px] font-normal text-muted">
+                      /100
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 border-t border-ink/15 pt-3">
+                <p className="font-data text-[8px] uppercase tracking-[0.2em] text-muted">
+                  Experience
+                </p>
+                <div className="mt-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-[10px] font-semibold">
+                      Staff Engineer — Acme Corp
+                    </p>
+                    <p className="font-data text-[8px] text-muted">2020—now</p>
+                  </div>
+                  <p className="mt-1.5 text-[9px] leading-relaxed text-ink/80">
+                    • Led a team of 6 to migrate the monolith to AWS, cutting
+                    deploy time 40%.
+                  </p>
+                  <p className="mt-1 text-[9px] leading-relaxed text-ink/80">
+                    • Designed CI/CD pipelines with GitHub Actions and
+                    Terraform.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 border-t border-ink/15 pt-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-data text-[8px] uppercase tracking-[0.2em] text-muted">
+                    Skills
+                  </p>
+                  <span className="font-data text-[7px] text-redline">
+                    ↓ extraction fails here
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {["Python", "AWS", "Docker", "Go"].map((skill) => (
+                    <span
+                      key={skill}
+                      className="border border-ink/15 px-1.5 py-0.5 font-data text-[8px] text-ink/80"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                  <span className="border border-redline/40 bg-redline/5 px-1.5 py-0.5 font-data text-[8px] text-redline">
+                    [image — 0 chars]
+                  </span>
+                </div>
+                <div className="mt-2 border-l-2 border-redline bg-redline/5 px-2 py-1.5">
+                  <p className="font-data text-[8px]">P y t h o n · A W S</p>
+                  <p className="mt-0.5 font-data text-[7px] text-redline">
+                    spaced-out letters — icon font not extractable
+                  </p>
+                </div>
+                <div className="mt-1.5 border-l-2 border-redline bg-redline/5 px-2 py-1.5">
+                  <p className="font-data text-[8px]">ﬁnance ﬂow ﬃ</p>
+                  <p className="mt-0.5 font-data text-[7px] text-redline">
+                    ligature glyphs returned instead of &quot;fi&quot; / &quot;fl&quot;
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Readout */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 px-4 py-3">
+          <span className="font-data text-[9px] uppercase tracking-[0.16em] text-slate-500">
+            extracted
+          </span>
+          <span className="font-data text-[10px] text-slate-300">1,284 chars</span>
+          <span className="font-data text-[10px] text-rose-300">3 issues</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="font-data text-[9px] uppercase tracking-[0.16em] text-slate-500">
+              parse fidelity
+            </span>
+            <span className="font-data text-sm font-semibold text-paper">82</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-2.5">
+          <span className="font-data text-[9px] text-slate-500">
+            pdftotext · pymupdf · tika
+          </span>
+          <button
+            type="button"
+            onClick={() => setRun((value) => value + 1)}
+            className="font-data text-[9px] uppercase tracking-[0.14em] text-slate-300 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-paper"
+          >
+            replay scan ↻
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
