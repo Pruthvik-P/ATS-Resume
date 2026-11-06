@@ -1,1 +1,31 @@
-.node_modules
+# --- Python / FastAPI ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Local data
+*.db
+*.sqlite3
+.data/
+apps/api/.env
+apps/api/.env.local
+apps/api/alembic/versions/*.py.tmp
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.env*.local
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
