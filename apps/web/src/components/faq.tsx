@@ -12,22 +12,22 @@ const faqs = [
   {
     question: "Can it invent experience, titles or metrics?",
     answer:
-      "No. The rewriter may only draw from your resume and your confirmed facts bank. Every changed bullet carries the source spans it draws from. If a claim cannot be traced, it fails closed. When a metric would help but is not provided, the tool inserts [ADD METRIC: …] and asks you for the real number.",
+      "No. The deterministic optimiser only reorders existing skills, fixes parse issues, replaces weak phrases with past-tense verbs it can trace, or inserts a placeholder asking for a missing number. The verifier rejects new employers, products, proper nouns, and unsupported numbers. Missing must-haves become questions, not inserted claims. An LLM provider is pluggable, but the default build uses a deterministic stub.",
   },
   {
     question: "What resumes can I upload?",
     answer:
-      "PDF, DOCX, and LaTeX (.tex or .zip). LaTeX is a first-class input: we parse the source into an AST so macros survive, compile it in a sandbox, and score the extracted PDF. That lets us fix parse problems at the source instead of flattening your layout.",
+      "PDF, DOCX, LaTeX (.tex or .zip), and plain text. We extract the text, structure it into a JSON Resume subset, and score that. LaTeX is read as source text and checked statically for font-encoding, ligature, table, multi-column, and hostile-input risks. This build does not compile LaTeX or export a PDF.",
   },
   {
     question: "Why is LaTeX treated differently?",
     answer:
-      "Because a LaTeX PDF can look perfect to a human and parse badly in an ATS. Ligatures, icon fonts, multi-column layouts and tables used for layout all corrupt extraction. We compile, extract with three ATS-like parsers, compare field by field, and cite the exact source line that breaks.",
+      "Because a LaTeX PDF can look perfect to a human and parse badly in an ATS. The engine analyses the source for missing ToUnicode maps, T1 font encoding, ligatures, icon fonts, tables, and multi-column layouts, then scores the text it can recover. It cites the source line when available. It does not claim three-parser agreement or a sandboxed compile.",
   },
   {
     question: "Where does my resume data live?",
     answer:
-      "The architecture keeps resumes encrypted at rest and in transit, supports retention limits and one-click deletion, and can redact PII before model calls. The AI provider you choose should offer zero-retention terms; self-hosting is an option for sensitive tenants. This page is a frontend preview — the engine and storage layer are being wired next.",
+      "In this build, resumes and job descriptions are stored by the FastAPI engine: SQLite locally or PostgreSQL via Compose, with uploaded files on the API host. Authentication is a single shared API key when configured. Per-user auth, encryption at rest, and retention controls are not implemented yet. The API exposes DELETE /v1/resumes/{id}.",
   },
 ];
 

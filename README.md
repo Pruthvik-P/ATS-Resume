@@ -23,14 +23,24 @@ for endpoints, scoring details, guardrails, and the exact implementation status.
 
 ## Run the frontend
 
+Start the backend first, then:
+
 ```bash
 cd apps/web
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-<http://localhost:3000>. The landing page is an honest preview of the product;
-the `/start` flow is not wired to the API yet.
+<http://localhost:3000>. The `/start` flow uploads the resume, analyses the job
+description, scores it, and starts an optimisation job through a same-origin
+proxy at `/api/backend/*`. Set `API_BASE_URL` (default
+`http://127.0.0.1:8000`) and, if the engine has a key configured, set
+`ATS_API_KEY` on the Next server to the same value. Keep `ATS_API_KEY`
+server-side — do not rename it with a `NEXT_PUBLIC_` prefix.
+
+If the engine is not running, the intake UI shows the connection error instead
+of a fake result.
 
 ## Run everything in Docker
 

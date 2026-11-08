@@ -64,8 +64,8 @@ export function Navbar() {
 
         <div className="flex items-center gap-2.5">
           <span className="hidden items-center gap-2 font-data text-[10px] uppercase tracking-[0.14em] text-muted lg:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-            preview build
+            <span className="h-1.5 w-1.5 rounded-full bg-muted" />
+            v0.4 · pre-release
           </span>
           <Link
             href="/start"

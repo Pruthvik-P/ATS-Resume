@@ -10,7 +10,7 @@ import { Footer } from "@/components/footer";
 
 const facts = [
   ["7", "weighted components"],
-  ["3", "ATS-like parsers"],
+  ["1", "job at a time"],
   ["0", "invented facts"],
   ["1", "human in the loop"],
 ];
@@ -18,18 +18,18 @@ const facts = [
 const formatGroups = [
   {
     label: "Input",
-    items: ["PDF", "DOCX", "LaTeX (.tex / .zip)"],
-    note: "Source parsed to an AST, not flattened first.",
+    items: ["PDF", "DOCX", "LaTeX (.tex / .zip)", "Plain text (.txt)"],
+    note: "Text is extracted, then structured heuristically into a JSON Resume subset.",
   },
   {
     label: "Output",
-    items: ["ATS-safe PDF", "LaTeX source", "Change log"],
-    note: "Every accepted edit is diffed and reversible.",
+    items: ["Score report", "Parse issues", "Change proposals"],
+    note: "Review each proposal. PDF and DOCX export are not in this build.",
   },
   {
     label: "Engine",
-    items: ["Tectonic", "pdftotext", "PyMuPDF", "Apache Tika"],
-    note: "Three extractors, because ATS vendors disagree.",
+    items: ["pypdf / PyMuPDF", "python-docx", "LaTeX static analysis"],
+    note: "One extractor per format. OCR and multi-parser comparison are not enabled.",
   },
 ];
 
@@ -62,7 +62,7 @@ export default function Home() {
               <div className="animate-rise flex items-center gap-2.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                 <span className="eyebrow text-muted">
-                  AI ATS optimiser · LaTeX-native
+                  AI ATS optimiser · evidence-first
                 </span>
               </div>
 
@@ -86,9 +86,9 @@ export default function Home() {
                 className="animate-rise mt-7 max-w-xl text-small leading-relaxed text-muted sm:text-body"
                 style={{ animationDelay: "220ms" }}
               >
-                ats.resume compiles your resume, extracts it the way an ATS
-                does, scores seven weighted components, and rewrites only what
-                your own experience supports. You approve every line.
+                ats.resume parses your resume source, extracts its text, scores
+                seven weighted components, and proposes only the edits your own
+                experience supports. You approve every line.
               </p>
 
               <div
@@ -120,10 +120,11 @@ export default function Home() {
                 style={{ animationDelay: "380ms" }}
               >
                 <li className="flex items-center gap-1.5">
-                  <span className="text-ok">✓</span> no account needed for this preview
+                  <span className="text-ok">✓</span> no account required
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <span className="text-ok">✓</span> every edit cites its source
+                  <span className="text-ok">✓</span> every edit carries a source
+                  reference
                 </li>
                 <li className="flex items-center gap-1.5">
                   <span className="text-ok">✓</span> nothing auto-submits
@@ -215,12 +216,12 @@ export default function Home() {
                   not a score generator.
                 </h2>
                 <p className="mt-6 max-w-xl text-small leading-relaxed text-muted sm:text-body">
-                  ats.resume is a LaTeX-native optimiser for one job at a time.
-                  It does not hand you a number and a rewritten CV. It parses
-                  your source, compiles it, extracts the PDF with the same kinds
-                  of tools ATS vendors use, analyses the job description, and
-                  scores seven components. Then it proposes changes — with the
-                  source line attached to every one.
+                  ats.resume is a diagnostic for one job at a time. It does not
+                  hand you a number and a rewritten CV. It parses your source,
+                  extracts the text the engine can recover, analyses the job
+                  description, and scores seven components. Then it proposes
+                  changes — with a source reference and rationale attached to
+                  each one.
                 </p>
                 <p className="mt-4 max-w-xl text-small leading-relaxed text-muted">
                   One input, one job, one honest read. No queue of auto-applied
@@ -253,8 +254,9 @@ export default function Home() {
               <div className="self-start lg:pt-3">
                 <ScanTranscript />
                 <p className="mt-3 font-data text-[9px] leading-relaxed text-muted">
-                  Illustrative output from a sample scan. The score engine and
-                  LaTeX worker are wired next.
+                  Illustrative output from a real engine run. Numbers vary by
+                  document. LaTeX is parsed as source text; compilation and PDF
+                  export are not in this build.
                 </p>
               </div>
             </div>
@@ -272,14 +274,16 @@ export default function Home() {
               <div>
                 <span className="eyebrow text-muted">inputs &amp; outputs</span>
                 <h2 className="text-h2 mt-4 text-ink">
-                  LaTeX in.
+                  Resume in.
                   <br />
-                  ATS-safe PDF out.
+                  Evidence out.
                 </h2>
                 <p className="mt-5 max-w-md text-small leading-relaxed text-muted">
-                  LaTeX is a first-class input, not a PDF afterthought. We parse
-                  the AST so your macros survive, compile in an isolated
-                  sandbox, and score the text an ATS actually extracts.
+                  PDF, DOCX, LaTeX and plain text are all first-class inputs. The
+                  engine extracts text, analyses the LaTeX source for ATS risks,
+                  scores what it can recover, and tells you what it lost.
+                  Sandboxed compilation and PDF export are Phase 2, not this
+                  build.
                 </p>
               </div>
 
@@ -332,9 +336,9 @@ export default function Home() {
                   Bring a resume and one job description.
                 </h2>
                 <p className="mt-5 max-w-xl text-small leading-relaxed text-slate-400">
-                  You get a score, the gaps behind it, and a rewrite you can
-                  defend. Every edit waits for your accept or reject — nothing is
-                  submitted anywhere until you download it.
+                  You get a score, the gaps behind it, and proposals you can
+                  defend. Every edit waits for your accept or reject. Nothing is
+                  submitted to an employer.
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
@@ -357,7 +361,7 @@ export default function Home() {
                   </Link>
                 </div>
                 <p className="mt-5 font-data text-[9px] uppercase tracking-[0.14em] text-slate-500">
-                  preview only · files stay in this browser · every edit waits for you
+                  local engine · stored on the scan host · no auto-apply
                 </p>
               </div>
             </div>

@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ats.resume web
 
-## Getting Started
+Next.js app for the ATS resume scorer and optimiser. The landing page explains
+the method; `/start` is the working intake flow.
 
-First, run the development server:
+## Run it
+
+The FastAPI engine must be running first (see the root README and
+`apps/api/README.md`).
 
 ```bash
+cd apps/web
+npm install
+cp .env.example .env.local   # Windows: copy .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000/start>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Default | Purpose |
+|---|---|---|
+| `API_BASE_URL` | `http://127.0.0.1:8000` | FastAPI origin used by the Next server. Prefer `127.0.0.1` over `localhost` to avoid IPv6 resolution surprises. |
+| `ATS_API_KEY` | unset | Optional. Sent as `x-api-key` when the engine has a key configured. Must match the API's key. This stays server-side. |
 
-## Learn More
+Do not add a `NEXT_PUBLIC_` prefix to either variable: that would expose the key
+to the browser.
 
-To learn more about Next.js, take a look at the following resources:
+## How the browser talks to the engine
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`src/app/api/backend/[...path]/route.ts` is a small same-origin proxy. The
+browser calls `/api/backend/*`, and the Next server forwards only the routes
+listed in its allowlist (`health`, `meta`, `resumes`, `jds`, `score`, `scores`,
+`optimise`, `jobs`, `facts`). This keeps the API key out of the browser and
+avoids CORS. SSE job progress is streamed through the same route; the client
+falls back to polling if the stream is unavailable.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## What this build does
 
-## Deploy on Vercel
+- Uploads PDF, DOCX, `.tex` / `.zip`, or `.txt`; extracts text and structures it.
+- Analyses a pasted job description into must-have / nice-to-have skills.
+- Shows the seven-component score, caps, penalties, parse issues, and
+  recommendations from the engine.
+- Starts an optimisation job, streams progress, and lets you accept or reject
+  each proposal. Accepted proposals trigger a real re-score.
+- Keeps `needs_user_input` proposals as questions. They cannot be accepted
+  as-is in the UI.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Not implemented here: sandboxed LaTeX compilation, PDF/DOCX export, OCR,
+multi-parser ATS comparison, and a trained embedding model. The default LLM is
+a deterministic stub. Scores are a calibrated proxy, not ground truth.

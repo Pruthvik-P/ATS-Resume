@@ -3,8 +3,8 @@ const stages = [
   { n: "02", title: "Parse", body: "to JSON Resume, with a source map" },
   { n: "03", title: "Analyse the JD", body: "must-have vs. nice-to-have" },
   { n: "04", title: "Score", body: "7 weighted, explainable components" },
-  { n: "05", title: "Rewrite", body: "grounded in your facts bank" },
-  { n: "06", title: "Diff & export", body: "accept each change, then PDF + .tex" },
+  { n: "05", title: "Propose", body: "source-bound edits; missing facts stay questions" },
+  { n: "06", title: "Review", body: "accept or reject each change, then re-score" },
 ];
 
 export function Pipeline() {

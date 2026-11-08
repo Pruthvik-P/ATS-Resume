@@ -19,12 +19,12 @@ const outcomes = [
   {
     label: "parse",
     title: "The parse issues",
-    body: "What an ATS extracts from your PDF — including the parts it loses.",
+    body: "What the engine extracts from your source — including the parts it loses.",
   },
   {
     label: "rewrite",
-    title: "A rewrite you approve",
-    body: "Every proposed edit cites its source line. Accept or reject each one.",
+    title: "Edits you approve",
+    body: "Each proposal carries a source reference and rationale. Accept or reject each one.",
   },
 ];
 

@@ -3,13 +3,13 @@ import { ChangeCard } from "@/components/change-card";
 const rules = [
   {
     label: "source-bound",
-    title: "Every claim maps to a line.",
-    body: "The rewriter may only draw from your resume and your confirmed facts bank.",
+    title: "Every edit maps to a source.",
+    body: "Deterministic edits reorder existing skills or replace a weak phrase with a past-tense verb. When an LLM provider is configured, rewrites may also draw on your confirmed facts bank — and are checked against it.",
   },
   {
     label: "metric-safe",
     title: "No invented numbers.",
-    body: "When a metric would help but isn't there, it inserts a placeholder and asks you.",
+    body: "When a metric would help but isn't there, the optimiser inserts a placeholder and asks you for the real number.",
   },
   {
     label: "fail-closed",
@@ -40,9 +40,9 @@ export function Guardrails() {
             </h2>
             <p className="mt-5 max-w-lg text-small leading-relaxed text-muted">
               Most resume tools optimise for a number. This one optimises for a
-              resume you can defend in the interview. The verifier checks every
-              claim against your source and your confirmed facts — and fails
-              closed.
+              resume you can defend in the interview. The verifier checks each
+              proposed rewrite against your source and confirmed facts — and
+              fails closed.
             </p>
 
             <div className="mt-9 grid gap-px border border-line bg-line sm:grid-cols-2">
@@ -74,8 +74,9 @@ export function Guardrails() {
           <div className="self-start lg:pt-4">
             <ChangeCard />
             <p className="mt-3 font-data text-[9px] leading-relaxed text-muted">
-              Interactive preview. Accept or reject the edit — nothing leaves
-              this page.
+              Sample proposal, interactive here only. Accepting it changes
+              nothing in this preview; a real scan sends the decision to the
+              engine and re-scores accepted edits.
             </p>
           </div>
         </div>

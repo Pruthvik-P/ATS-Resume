@@ -30,7 +30,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "ATS.Resume — Stop guessing what the machine sees.",
   description:
-    "A LaTeX-native ATS resume optimiser that shows its work. Compile, parse, score seven weighted components, and rewrite only what your own experience supports.",
+    "An evidence-first ATS resume optimiser that shows its work. Parse, analyse the job description, score seven weighted components, and propose only edits your own experience supports.",
 };
 
 export default function RootLayout({
