@@ -1,8 +1,8 @@
 # AI ATS Resume Optimiser
 
 An explainable ATS scoring and resume optimisation engine with LaTeX support.
-Built around one rule: **edit the source, score the output** — and never invent
-a fact to raise a score.
+Built around one rule: **propose edits to the source, score the result** — and
+never invent a fact to raise a score.
 
 - [`ats-resume-optimizer-architecture.md`](ats-resume-optimizer-architecture.md)
   — product, system design, scoring model, roadmap.
