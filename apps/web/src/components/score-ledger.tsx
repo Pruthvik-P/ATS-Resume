@@ -40,7 +40,7 @@ export function ScoreLedger() {
               <span className="font-data text-[10px] uppercase leading-relaxed tracking-[0.16em] text-muted">
                 / 100
                 <br />
-                calibrated proxy
+                sample · calibrated proxy
               </span>
             </div>
 
@@ -61,7 +61,7 @@ export function ScoreLedger() {
                   <span className="text-redline">cap 60</span>
                 </p>
                 <p className="flex justify-between gap-4">
-                  <span>Hidden text or stuffing</span>
+                  <span>Skill stuffing or hidden text</span>
                   <span className="text-redline">penalty</span>
                 </p>
               </div>
@@ -104,8 +104,10 @@ export function ScoreLedger() {
               ))}
             </ul>
             <p className="mt-4 font-data text-[10px] leading-relaxed text-muted">
-              Evidence in an experience bullet outscores a bare skills-list
-              mention. Must-have requirements carry double weight.
+              Sample values from a real report. Evidence in an experience bullet
+              outscores a bare skills-list mention. Must-have requirements carry
+              double weight. Caps and penalties can pull the overall score below
+              the weighted raw score.
             </p>
           </div>
         </div>

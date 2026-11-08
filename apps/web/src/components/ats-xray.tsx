@@ -59,10 +59,11 @@ export function AtsXRay() {
             </h2>
           </div>
           <p className="max-w-md text-small leading-relaxed text-slate-400 lg:justify-self-end">
-            LaTeX PDFs break parsing through ligatures, icon fonts, multi-column
-            layouts, and tables used for layout. We compile your source, extract
-            the PDF with three ATS-like parsers, and diff the result field by
-            field. Then we fix it at the source — not in the PDF.
+            LaTeX PDFs can break parsing through ligatures, icon fonts,
+            multi-column layouts, and tables used for layout. This build reads
+            the source you upload, extracts its text, and compares that text
+            against the structured fields it recovered. It does not compile a
+            PDF or run three ATS parsers.
           </p>
         </div>
 
@@ -99,10 +100,10 @@ export function AtsXRay() {
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
               <span className="flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-slate-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-redline" />
-                raw ats-extracted text
+                text the engine extracted
               </span>
               <span className="font-data text-[10px] text-rose-300">
-                3 issues
+                sample · 3 issues
               </span>
             </div>
 
@@ -155,8 +156,8 @@ export function AtsXRay() {
             <span className="h-2 w-2 bg-redline" /> parse issue
           </span>
           <span className="text-slate-500/80">
-            compile → extract with 3 parsers → compare field by field → cite the
-            source line
+            extract text → structure fields → compare → attach a source
+            reference when available
           </span>
         </div>
       </div>

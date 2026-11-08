@@ -18,12 +18,12 @@ export function HeroScan() {
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-slate-400">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-            <span className="truncate">compiled</span>
+            <span className="truncate">parsed</span>
             <span className="text-slate-600">/</span>
             <span className="truncate text-slate-300">jane_doe.tex</span>
           </div>
           <span className="shrink-0 border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 font-data text-[9px] font-medium text-amber-300">
-            3 parse issues
+            sample issues
           </span>
         </div>
 
@@ -138,7 +138,7 @@ export function HeroScan() {
 
         <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-2.5">
           <span className="font-data text-[9px] text-slate-500">
-            pdftotext · pymupdf · tika
+            pypdf · heuristic structurer
           </span>
           <button
             type="button"

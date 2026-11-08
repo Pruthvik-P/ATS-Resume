@@ -11,32 +11,32 @@ const lines = [
   {
     kind: "ok",
     label: "parse",
-    text: "resume.tex → canonical · 1,284 tokens",
+    text: "resume.tex → source text · 1,284 chars",
   },
   {
     kind: "ok",
-    label: "compile",
-    text: "Tectonic → PDF · 1.2s",
+    label: "structure",
+    text: "heuristic → 2 roles · 2 skill groups",
   },
   {
     kind: "warn",
     label: "extract",
-    text: "3 parse issues → see the X-Ray",
+    text: "1 parse warning → see the X-Ray",
   },
   {
     kind: "ok",
     label: "analyse",
-    text: "JD → 14 must-have · 9 nice-to-have",
+    text: "JD → 6 must-have · 3 nice-to-have",
   },
   {
     kind: "ok",
     label: "score",
-    text: "78 / 100 · calibrated proxy",
+    text: "55.9 / 100 · capped at 70",
   },
   {
     kind: "ok",
     label: "optimise",
-    text: "11 changes · 0 unsupported claims",
+    text: "4 proposals · 2 need your input",
   },
 ] as const;
 

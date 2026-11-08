@@ -24,7 +24,7 @@ const columns = [
     links: [
       { label: "Scores are a proxy", href: "/#scoring" },
       { label: "No auto-apply", href: "/#guardrails" },
-      { label: "Preview build", href: "/start" },
+      { label: "Current limits", href: "/start" },
     ],
   },
 ];
@@ -42,12 +42,12 @@ export function Footer() {
               ats<span className="text-accent-soft">.</span>resume
             </Link>
             <p className="mt-4 max-w-xs text-small leading-relaxed text-slate-400">
-              An evidence-first ATS optimiser. Built to show its work, cite its
-              sources, and leave the final decision with you.
+              An evidence-first ATS optimiser. Built to show its work, attach
+              source references, and leave the final decision with you.
             </p>
             <p className="mt-6 inline-flex items-center gap-2 border border-white/10 px-2.5 py-1.5 font-data text-[9px] uppercase tracking-[0.14em] text-slate-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              preview build 0.4
+              v0.4 · pre-release
             </p>
           </div>
 
@@ -75,7 +75,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 font-data text-[9px] leading-relaxed text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 ats.resume · frontend preview</p>
+          <p>© 2026 ats.resume · local-first build</p>
           <p className="max-w-md sm:text-right">
             Not affiliated with any ATS vendor. No score is ground truth. No
             change is submitted without you.

@@ -8,9 +8,9 @@ export function ChangeCard() {
   const [decision, setDecision] = useState<Decision>("idle");
 
   const original =
-    "Worked on backend services and helped improve performance.";
+    "Worked on building backend services and helped improve performance.";
   const optimised =
-    "Rebuilt the order service on Kubernetes, cutting p95 latency 38% (from your metrics).";
+    "Built backend services and helped improve performance.";
 
   return (
     <div className="border border-ink/15 bg-paper shadow-[0_24px_60px_-36px_rgba(15,20,15,0.5)]">
@@ -19,7 +19,7 @@ export function ChangeCard() {
           <span className="h-1.5 w-1.5 rounded-full bg-ok" />
           optimiser
           <span className="text-line">/</span>
-          change 3 of 11
+          sample proposal
         </div>
         <span className="border border-ok/25 bg-ok/10 px-2 py-0.5 font-data text-[9px] font-medium uppercase tracking-[0.1em] text-ok">
           verified
@@ -28,16 +28,12 @@ export function ChangeCard() {
 
       <div className="flex items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
         <span className="font-data text-[9px] uppercase tracking-[0.16em] text-muted">
-          match
+          change
         </span>
-        <span className="font-data text-sm text-muted line-through">78</span>
-        <span className="font-display text-2xl font-bold leading-none text-ink">
-          84
+        <span className="font-data text-sm text-ink">rewrite bullet</span>
+        <span className="ml-auto font-data text-[9px] uppercase tracking-[0.1em] text-muted">
+          weak phrase → past tense
         </span>
-        <div className="ml-auto flex h-1.5 w-24 overflow-hidden bg-line">
-          <span className="h-full w-[62%] bg-muted/50" />
-          <span className="h-full w-[22%] bg-ok" />
-        </div>
       </div>
 
       <div className="space-y-3 px-4 py-4 sm:px-5">
@@ -54,7 +50,7 @@ export function ChangeCard() {
           </div>
           <p className="text-small leading-relaxed text-ink">{optimised}</p>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {["Kubernetes", "p95 latency", "source: experience[2]"].map(
+            {["source: work[0].highlights[2]", "no new facts", "no new numbers"].map(
               (tag) => (
                 <span
                   key={tag}
@@ -98,8 +94,8 @@ export function ChangeCard() {
               }`}
             >
               {decision === "accepted"
-                ? "✓ kept in version 2 — source line cited"
-                : "✕ reverted — original bullet kept"}
+                ? "✓ accepted — included in the re-score"
+                : "✕ rejected — original kept"}
             </span>
             <button
               type="button"
@@ -114,9 +110,9 @@ export function ChangeCard() {
 
       <div className="border-t border-line bg-bg/50 px-4 py-2.5 sm:px-5">
         <p className="font-data text-[9px] leading-relaxed text-muted">
-          no metric in your source? we insert{" "}
-          <span className="text-signal">[ADD METRIC: …]</span> instead of
-          inventing one.
+          no metric in your source? the engine inserts{" "}
+          <span className="text-signal">[ADD METRIC: …]</span> and asks you for
+          the real number. This build has no PDF or DOCX export.
         </p>
       </div>
     </div>

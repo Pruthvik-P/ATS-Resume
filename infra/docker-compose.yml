@@ -1,0 +1,50 @@
+name: ats-engine
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ats
+      POSTGRES_PASSWORD: ats
+      POSTGRES_DB: ats
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ats -d ats"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Reserved for the Phase 2 cache and job queue (Celery/Redis).
+  # The API does not require it yet.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ../apps/api
+    environment:
+      ATS_ENVIRONMENT: production
+      ATS_DATABASE_URL: postgresql+psycopg://ats:ats@postgres:5432/ats
+      ATS_AUTO_CREATE_TABLES: "false"
+      ATS_ALLOWED_ORIGINS: http://localhost:3000
+      ATS_STORAGE_DIR: /data/uploads
+      ATS_LLM_PROVIDER: stub
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
+
+volumes:
+  pgdata:
+  uploads:
