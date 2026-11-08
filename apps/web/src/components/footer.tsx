@@ -31,7 +31,7 @@ const columns = [
 
 export function Footer() {
   return (
-    <footer className="bg-ink text-paper">
+    <footer className="bg-night text-on-night">
       <div className="mx-auto max-w-[1240px] px-5 py-14 sm:px-8 sm:py-16">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.3fr_2fr]">
           <div>
@@ -39,7 +39,7 @@ export function Footer() {
               href="/"
               className="font-display text-2xl font-bold tracking-[-0.04em]"
             >
-              ats<span className="text-accent-soft">.</span>resume
+              ats<span className="text-on-night-accent">.</span>resume
             </Link>
             <p className="mt-4 max-w-xs text-small leading-relaxed text-slate-400">
               An evidence-first ATS optimiser. Built to show its work, attach
@@ -62,7 +62,7 @@ export function Footer() {
                     <li key={link.label}>
                       <Link
                         href={link.href}
-                        className="text-caption text-slate-300 transition-colors hover:text-paper"
+                        className="text-caption text-slate-300 transition-colors hover:text-on-night"
                       >
                         {link.label}
                       </Link>

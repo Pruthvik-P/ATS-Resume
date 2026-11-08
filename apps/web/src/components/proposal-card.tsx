@@ -201,7 +201,7 @@ export function ProposalCard({
                 type="button"
                 onClick={() => onDecide("accepted")}
                 disabled={pending}
-                className="inline-flex h-8 items-center bg-ok px-3 font-data text-[10px] font-semibold uppercase tracking-[0.1em] text-paper transition-colors hover:bg-[#175B3C] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center bg-ok px-3 font-data text-[10px] font-semibold uppercase tracking-[0.1em] text-paper transition-colors hover:bg-ok/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pending ? "Saving…" : "Accept"}
               </button>

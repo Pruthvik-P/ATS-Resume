@@ -50,3 +50,13 @@ falls back to polling if the stream is unavailable.
 Not implemented here: sandboxed LaTeX compilation, PDF/DOCX export, OCR,
 multi-parser ATS comparison, and a trained embedding model. The default LLM is
 a deterministic stub. Scores are a calibrated proxy, not ground truth.
+
+## Theming
+
+Light and dark are class-based (`.dark` on `<html>`), not a media-query token
+flip. On first visit the app follows the OS preference; the navbar toggle writes
+`ats-theme` to `localStorage`, and an inline script in `src/app/layout.tsx`
+applies it before the first paint so there is no flash. In dark mode the page,
+cards, and controls switch to a deep green-black "darkroom" palette, while the
+hero proof sheet, the X-Ray's human panel, and the proposal card stay fixed
+paper-white (`sheet` tokens). Terminal-style panels stay dark (`night` tokens).

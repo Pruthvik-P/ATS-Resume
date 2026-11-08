@@ -44,7 +44,7 @@ export function AtsXRay() {
   return (
     <section
       id="xray"
-      className="scroll-mt-20 border-b border-white/10 bg-ink text-paper"
+      className="scroll-mt-20 border-b border-white/10 bg-night text-on-night"
     >
       <div className="mx-auto max-w-[1240px] px-5 py-20 sm:px-8 sm:py-28">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
@@ -52,7 +52,7 @@ export function AtsXRay() {
             <span className="eyebrow text-slate-500">
               signature / the x-ray
             </span>
-            <h2 className="text-h2 mt-4 text-paper">
+            <h2 className="text-h2 mt-4 text-on-night">
               What you see vs.
               <br />
               what the ATS sees.
@@ -69,28 +69,28 @@ export function AtsXRay() {
 
         <div className="mt-12 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           {/* Human view */}
-          <div className="border border-white/10 bg-paper text-ink">
-            <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-              <span className="flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-muted">
-                <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+          <div className="border border-sheet-line bg-sheet text-sheet-ink">
+            <div className="flex items-center justify-between border-b border-sheet-line px-4 py-2.5">
+              <span className="flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-sheet-muted">
+                <span className="h-1.5 w-1.5 rounded-full bg-sheet-ok" />
                 as a human reads it
               </span>
-              <span className="font-data text-[10px] text-ok">clean</span>
+              <span className="font-data text-[10px] text-sheet-ok">clean</span>
             </div>
             <div className="p-4 sm:p-5">
-              <pre className="overflow-x-auto whitespace-pre-wrap font-body text-[12.5px] leading-relaxed text-ink">
+              <pre className="overflow-x-auto whitespace-pre-wrap font-body text-[12.5px] leading-relaxed text-sheet-ink">
                 {humanLines.join("\n")}
               </pre>
             </div>
-            <div className="border-t border-line bg-redline-soft/30 px-4 py-3 sm:px-5">
-              <p className="font-data text-[9px] uppercase tracking-[0.16em] text-redline">
+            <div className="border-t border-sheet-line bg-sheet-redline-soft/40 px-4 py-3 sm:px-5">
+              <p className="font-data text-[9px] uppercase tracking-[0.16em] text-sheet-redline">
                 what disappears
               </p>
-              <p className="mt-1 text-caption leading-relaxed text-ink">
+              <p className="mt-1 text-caption leading-relaxed text-sheet-ink">
                 Spaced letters, ligature glyphs, and image-based sections.
               </p>
             </div>
-            <div className="border-t border-line px-4 py-2.5 font-data text-[9px] uppercase tracking-[0.14em] text-muted">
+            <div className="border-t border-sheet-line px-4 py-2.5 font-data text-[9px] uppercase tracking-[0.14em] text-sheet-muted">
               visual reading order · intact
             </div>
           </div>
@@ -117,7 +117,7 @@ export function AtsXRay() {
                     <span
                       className={`min-w-0 whitespace-pre-wrap break-words ${
                         line.issue
-                          ? "-ml-1 border-l-2 border-redline bg-redline/10 px-2 text-rose-300"
+                          ? "-ml-1 border-l-2 border-rose-400 bg-rose-400/10 px-2 text-rose-300"
                           : "text-slate-300"
                       }`}
                     >

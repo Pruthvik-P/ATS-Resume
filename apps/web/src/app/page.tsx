@@ -38,7 +38,7 @@ export default function Home() {
     <div className="flex flex-1 flex-col">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink focus:px-4 focus:py-2 focus:text-caption focus:text-paper"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-night focus:px-4 focus:py-2 focus:text-caption focus:text-on-night"
       >
         Skip to content
       </a>
@@ -165,17 +165,17 @@ export default function Home() {
         </section>
 
         {/* The premise */}
-        <section className="border-b border-white/10 bg-ink text-paper">
+        <section className="border-b border-white/10 bg-night text-on-night">
           <div className="mx-auto max-w-[1240px] px-5 py-16 sm:px-8 sm:py-20">
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.16fr_1fr]">
               <span
                 aria-hidden="true"
-                className="font-display text-6xl leading-[0.7] text-accent-soft/30"
+                className="font-display text-6xl leading-[0.7] text-on-night/25"
               >
                 &ldquo;
               </span>
               <div>
-                <p className="max-w-3xl font-display text-[clamp(1.7rem,3.3vw,2.9rem)] font-medium leading-[1.1] tracking-[-0.03em] text-paper">
+                <p className="max-w-3xl font-display text-[clamp(1.7rem,3.3vw,2.9rem)] font-medium leading-[1.1] tracking-[-0.03em] text-on-night">
                   Most resume tools optimise for a number. This one optimises
                   for a resume you can defend in the room.
                 </p>
@@ -185,7 +185,7 @@ export default function Home() {
                   </p>
                   <Link
                     href="#scoring"
-                    className="group inline-flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.14em] text-slate-300 transition-colors hover:text-paper"
+                    className="group inline-flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.14em] text-slate-300 transition-colors hover:text-on-night"
                   >
                     read the scoring method
                     <span
@@ -318,7 +318,7 @@ export default function Home() {
         {/* Final CTA */}
         <section className="bg-paper">
           <div className="mx-auto max-w-[1240px] px-5 py-20 sm:px-8 sm:py-24">
-            <div className="relative overflow-hidden border border-line bg-ink px-6 py-12 text-paper sm:px-10 sm:py-16 lg:px-14">
+            <div className="relative overflow-hidden border border-line bg-night px-6 py-12 text-on-night sm:px-10 sm:py-16 lg:px-14">
               <div
                 aria-hidden="true"
                 className="grid-dark pointer-events-none absolute inset-0 opacity-60"
@@ -332,7 +332,7 @@ export default function Home() {
                 <span className="eyebrow text-slate-500">
                   ready when you are
                 </span>
-                <h2 className="text-h2 mt-4 max-w-2xl text-paper">
+                <h2 className="text-h2 mt-4 max-w-2xl text-on-night">
                   Bring a resume and one job description.
                 </h2>
                 <p className="mt-5 max-w-xl text-small leading-relaxed text-slate-400">
@@ -343,7 +343,7 @@ export default function Home() {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
                     href="/start"
-                    className="group inline-flex h-12 items-center justify-center gap-3 bg-paper px-6 text-small font-semibold text-ink transition-colors hover:bg-accent-soft"
+                    className="group inline-flex h-12 items-center justify-center gap-3 bg-sheet px-6 text-small font-semibold text-sheet-ink transition-colors hover:bg-sheet-bg"
                   >
                     Run a scan
                     <span
@@ -355,7 +355,7 @@ export default function Home() {
                   </Link>
                   <Link
                     href="#scoring"
-                    className="inline-flex h-12 items-center justify-center border border-white/20 px-6 text-small font-medium text-paper transition-colors hover:bg-white/5"
+                    className="inline-flex h-12 items-center justify-center border border-white/20 px-6 text-small font-medium text-on-night transition-colors hover:bg-white/5"
                   >
                     Read the method
                   </Link>

@@ -42,7 +42,7 @@ const lines = [
 
 export function ScanTranscript() {
   return (
-    <div className="border border-ink/15 bg-ink text-paper">
+    <div className="border border-white/10 bg-night text-on-night">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
         <div className="flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-slate-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -61,7 +61,7 @@ export function ScanTranscript() {
             if (line.kind === "command") {
               return (
                 <p key={line.text} className="flex gap-2 text-slate-300">
-                  <span className="text-accent-soft">$</span>
+                  <span className="text-on-night-accent">$</span>
                   <span>{line.text}</span>
                 </p>
               );
@@ -94,8 +94,8 @@ export function ScanTranscript() {
         <div className="mt-5 border-t border-white/10 pt-3">
           <p className="font-data text-[10px] text-slate-500">
             status:{" "}
-            <span className="text-paper">waiting for your review</span>
-            <span className="cursor-blink ml-0.5 inline-block h-[1em] w-[0.5em] translate-y-[0.12em] bg-accent-soft/80" />
+            <span className="text-on-night">waiting for your review</span>
+            <span className="cursor-blink ml-0.5 inline-block h-[1em] w-[0.5em] translate-y-[0.12em] bg-on-night-accent/80" />
           </p>
         </div>
       </div>

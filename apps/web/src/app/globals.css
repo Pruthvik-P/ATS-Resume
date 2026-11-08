@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Theme is driven by a class on <html>, not the OS media query, so the
+   toggle can override the system preference and stay put across pages. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* --- Color: diagnostic paper, printer's ink, redline --- */
   --color-ink: #0F140F;          /* printer's ink — text + dark panels */
@@ -18,12 +22,57 @@
   --color-ok: #1E6F4A;           /* verified green */
   --color-ok-soft: #E7F2EB;
 
+  /* --- Fixed surfaces: these do not invert with the theme ---
+     `night` is the terminal / darkroom chassis. `sheet` is a lit proof
+     sheet that stays paper-white in both themes, because the artifacts
+     in this product are physical documents. */
+  --color-night: #0F140F;
+  --color-night-2: #151C15;
+  --color-on-night: #FBFBF6;
+  --color-on-night-muted: #A7B2A3;
+  --color-on-night-faint: #6E7A6B;
+  --color-on-night-accent: #8FB0FF;
+
+  --color-sheet: #FBFBF6;
+  --color-sheet-bg: #EDF0E7;
+  --color-sheet-ink: #0F140F;
+  --color-sheet-muted: #5E685D;
+  --color-sheet-line: #D3D9CE;
+  --color-sheet-accent: #1E4DD8;
+  --color-sheet-signal: #B45309;
+  --color-sheet-redline: #C7442B;
+  --color-sheet-redline-soft: #FBEAE5;
+  --color-sheet-ok: #1E6F4A;
+  --color-sheet-ok-soft: #E7F2EB;
+
   /* --- Type: a characterful grotesque, a workhorse sans, a data mono --- */
   --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
   --font-body: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-data: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 
   --radius: 2px;
+}
+
+/* --- Darkroom palette ---
+   Not a token inversion: paper becomes a deep green-black, ink becomes
+   the light, and the fixed `sheet` / `night` surfaces stay put. Blues and
+   greens are lifted so they remain legible on a dark ground. */
+.dark {
+  --color-ink: #EDF1E6;          /* primary text, now light */
+  --color-ink-2: #D7DDCE;        /* hover on a lit button */
+  --color-paper: #141A13;        /* raised card surface */
+  --color-bg: #0B0F0B;           /* page ground */
+  --color-muted: #9FAB9B;        /* secondary text on dark */
+  --color-line: #2A3328;         /* hairline on dark */
+  --color-accent: #8FB0FF;       /* lifted correction blue */
+  --color-accent-strong: #BDD0FF;
+  --color-accent-soft: #1C2B49;
+  --color-signal: #F2B968;       /* lifted amber */
+  --color-signal-soft: #33260F;
+  --color-redline: #F08B74;      /* lifted editor's red */
+  --color-redline-soft: #3A1B15;
+  --color-ok: #84D6AC;           /* lifted verified green */
+  --color-ok-soft: #122B1F;
 }
 
 /* Type scale lives OUTSIDE @theme so `.text-*` role classes don't collide
@@ -45,6 +94,10 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -114,6 +167,11 @@ body {
     linear-gradient(to right, rgba(15, 20, 15, 0.055) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 20, 15, 0.055) 1px, transparent 1px);
   background-size: 56px 56px;
+}
+.dark .grid-paper {
+  background-image:
+    linear-gradient(to right, rgba(237, 241, 230, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(237, 241, 230, 0.05) 1px, transparent 1px);
 }
 .grid-dark {
   background-image:

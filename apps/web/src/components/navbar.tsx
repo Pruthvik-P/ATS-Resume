@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const links = [
   { href: "/#how-it-works", label: "How it works" },
@@ -62,14 +63,17 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <span className="hidden items-center gap-2 font-data text-[10px] uppercase tracking-[0.14em] text-muted lg:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-muted" />
             v0.4 · pre-release
           </span>
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
           <Link
             href="/start"
-            className="group inline-flex h-9 items-center gap-2 border border-ink bg-ink px-4 text-caption font-semibold text-paper transition-colors hover:bg-ink-2"
+            className="group inline-flex h-9 items-center gap-2 border border-ink bg-ink px-3 text-caption font-semibold text-paper transition-colors hover:bg-ink-2 sm:px-4"
           >
             Run a scan
             <span
@@ -119,6 +123,12 @@ export function Navbar() {
               </Link>
             ))}
           </nav>
+          <div className="flex items-center justify-between border-t border-line px-5 py-3">
+            <span className="font-data text-[9px] uppercase tracking-[0.14em] text-muted">
+              appearance
+            </span>
+            <ThemeToggle />
+          </div>
         </div>
       )}
     </header>
