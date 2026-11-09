@@ -3,10 +3,13 @@
 import { useState } from "react";
 import type { ChangeProposal, ChangeStatus } from "@/lib/api-types";
 import { humanize } from "@/lib/format";
+import { WordDiff } from "@/components/word-diff";
 
 const KIND_LABEL: Record<ChangeProposal["kind"], string> = {
   rewrite_bullet: "rewrite bullet",
   reorder_skills: "reorder skills",
+  reorder_bullets: "reorder bullets",
+  condense_bullets: "condense",
   placeholder_metric: "add a metric",
   missing_skill_question: "missing must-have",
   parse_fix: "parse fix",
@@ -87,6 +90,7 @@ export function ProposalCard({
 }) {
   const needsInput = proposal.truthfulness === "needs_user_input";
   const isPlaceholder = proposal.kind === "placeholder_metric";
+  const isCondense = proposal.kind === "condense_bullets";
   const isEditable =
     proposal.kind === "rewrite_bullet" || proposal.kind === "placeholder_metric";
   const hasDiff = Boolean(proposal.original || proposal.proposed);
@@ -102,9 +106,10 @@ export function ProposalCard({
   const hasPlaceholder = PLACEHOLDER_RE.test(currentDraft);
   const dirty = currentDraft.trim() !== proposal.proposed.trim();
   const canAccept =
-    proposal.truthfulness === "verified" &&
-    !hasPlaceholder &&
-    currentDraft.trim().length > 0;
+    isCondense ||
+    (proposal.truthfulness === "verified" &&
+      !hasPlaceholder &&
+      currentDraft.trim().length > 0);
 
   const saveEdit = async () => {
     if (!currentDraft.trim() || savingEdit) return;
@@ -197,6 +202,15 @@ export function ProposalCard({
                 text={proposal.proposed}
                 tone="proposed"
               />
+            )}
+            {proposal.original && proposal.proposed && (
+              <WordDiff before={proposal.original} after={proposal.proposed} />
+            )}
+            {isCondense && !proposal.proposed && (
+              <p className="border border-signal/25 bg-signal-soft/60 p-2.5 text-caption text-signal">
+                Accepting this proposal removes the bullet above. Dismiss it if
+                the content still earns space.
+              </p>
             )}
           </div>
         )}

@@ -184,6 +184,25 @@ class ResumeVersionRead(ORMModel):
     created_at: datetime
 
 
+class ResumeVersionDetail(ResumeVersionRead):
+    document: ResumeDocument
+
+
+class FieldDiff(BaseModel):
+    path: str
+    change: Literal["added", "removed", "changed"]
+    before: str | None = None
+    after: str | None = None
+
+
+class VersionDiffResponse(BaseModel):
+    version_id: str
+    against_version_id: str | None = None
+    changed_fields: int = 0
+    fields: list[FieldDiff] = Field(default_factory=list)
+    note: str = "Canonical field-level diff; source formatting/template changes are not compared."
+
+
 class ResumeStats(BaseModel):
     bullets: int
     words: int

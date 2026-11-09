@@ -10,6 +10,8 @@ JobType = Literal["optimise", "score", "ingest"]
 ChangeKind = Literal[
     "rewrite_bullet",
     "reorder_skills",
+    "reorder_bullets",
+    "condense_bullets",
     "placeholder_metric",
     "missing_skill_question",
     "parse_fix",
@@ -51,7 +53,10 @@ class OptimiseOptions(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=5)
     target_score: float = Field(default=85.0, ge=0.0, le=100.0)
     reorder_skills: bool = True
+    reorder_bullets: bool = True
+    tailor_summary: bool = True
     suggest_metrics: bool = True
+    max_pages: float = Field(default=1.0, ge=0.5, le=5.0)
     max_changes: int = Field(default=25, ge=1, le=100)
     tone: Literal["concise", "balanced", "detailed"] = "concise"
 
@@ -65,6 +70,18 @@ class OptimiseRequest(BaseModel):
     options: OptimiseOptions = Field(default_factory=OptimiseOptions)
 
 
+class IterationRecord(BaseModel):
+    iteration: int
+    baseline_score: float
+    candidate_score: float
+    score_delta: float
+    compile_status: str = "disabled"
+    parse_fidelity_before: dict[str, Any] = Field(default_factory=dict)
+    parse_fidelity_after: dict[str, Any] = Field(default_factory=dict)
+    rolled_back: bool = False
+    reason: str | None = None
+
+
 class OptimiseResult(BaseModel):
     job_id: str
     resume_id: str
@@ -72,6 +89,8 @@ class OptimiseResult(BaseModel):
     baseline_score: float
     target_score: float
     score_after_accepted: float
+    estimated_pages_before: float = 0.0
+    estimated_pages_after: float = 0.0
     iterations: int
     stopped_reason: Literal[
         "target_reached",
@@ -82,6 +101,7 @@ class OptimiseResult(BaseModel):
     proposals: list[ChangeProposal] = Field(default_factory=list)
     verifier: VerifierSummary = Field(default_factory=VerifierSummary)
     notes: list[str] = Field(default_factory=list)
+    iteration_history: list[IterationRecord] = Field(default_factory=list)
     model_versions: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

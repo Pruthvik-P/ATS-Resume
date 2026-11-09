@@ -50,24 +50,41 @@ to the browser.
 `src/app/api/backend/[...path]/route.ts` is a small same-origin proxy. The
 browser calls `/api/backend/*`, and the Next server forwards only the routes
 listed in its allowlist (`health`, `meta`, `resumes`, `jds`, `score`, `scores`,
-`optimise`, `jobs`, `facts`). This keeps the API key out of the browser and
-avoids CORS. SSE job progress is streamed through the same route; the client
-falls back to polling if the stream is unavailable.
+`optimise`, `jobs`, `versions`, `facts`, `account`, `search`, `tailor`). This
+keeps the API key out of the browser and avoids CORS. SSE job progress is
+streamed through the same route; the client falls back to polling if the stream
+is unavailable.
 
 ## What this build does
 
 - Uploads PDF, DOCX, `.tex` / `.zip`, or `.txt`; extracts text and structures it.
-- Analyses a pasted job description into must-have / nice-to-have skills.
+- Analyses a pasted job description **or public URL** into must-have / nice-to-have
+  skills.
 - Shows the seven-component score, caps, penalties, parse issues, and
   recommendations from the engine.
 - Starts an optimisation job, streams progress, and lets you accept or reject
   each proposal. Accepted proposals trigger a real re-score.
 - Keeps `needs_user_input` proposals as questions. They cannot be accepted
   as-is in the UI.
+- Shows summary tailoring, relevance reordering, condense suggestions, one-page
+  estimates, and iteration history.
+- Provides a Facts Bank panel, immutable version history, field-level diffs,
+  word-level proposal diffs, TEX/DOCX/PDF/JSON downloads, patched-TEX export, and
+  an inline PDF preview.
+- Provides delete-all and retention-purge privacy controls.
 
-Not implemented here: sandboxed LaTeX compilation, PDF/DOCX export, OCR,
-multi-parser ATS comparison, and a trained embedding model. The default LLM is
-a deterministic stub. Scores are a calibrated proxy, not ground truth.
+Not implemented here: Monaco LaTeX editing, multi-file zip source editing,
+component/E2E/accessibility tests, and OCR. PDF export/preview requires the
+sandboxed LaTeX worker; the default LLM remains a deterministic stub. Scores are
+a calibrated proxy, not ground truth.
+
+### Tests
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm test        # Node test runner, currently the word-diff utility
+```
 
 ## Theming
 

@@ -1,10 +1,17 @@
 import type {
   ChangeDecisionResponse,
   ChangeProposal,
+  DeleteAllResponse,
+  Fact,
+  FactsList,
   JDAnalysisResponse,
   JobRead,
+  PurgeResponse,
   ResumeRead,
+  ResumeVersionDetail,
+  ResumeVersionRead,
   ScoreReport,
+  VersionDiffResponse,
 } from "@/lib/api-types";
 
 const API_ROOT = "/api/backend";
@@ -104,6 +111,17 @@ export function createJd(text: string): Promise<JDAnalysisResponse> {
   });
 }
 
+export function createJdFromUrl(
+  url: string,
+  title?: string,
+): Promise<JDAnalysisResponse> {
+  return request<JDAnalysisResponse>("/jds", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(title ? { url, title } : { url }),
+  });
+}
+
 export function createScore(
   resumeId: string,
   jdId: string,
@@ -163,6 +181,70 @@ export function decideChange(
 
 export function jobEventsUrl(jobId: string): string {
   return `${API_ROOT}/jobs/${encodeURIComponent(jobId)}/events`;
+}
+
+export function listVersions(resumeId: string): Promise<ResumeVersionRead[]> {
+  return request<ResumeVersionRead[]>(
+    `/resumes/${encodeURIComponent(resumeId)}/versions`,
+  );
+}
+
+export function getVersion(versionId: string): Promise<ResumeVersionDetail> {
+  return request<ResumeVersionDetail>(
+    `/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export function getVersionDiff(
+  versionId: string,
+  against?: string,
+): Promise<VersionDiffResponse> {
+  const query = against ? `?against=${encodeURIComponent(against)}` : "";
+  return request<VersionDiffResponse>(
+    `/versions/${encodeURIComponent(versionId)}/diff${query}`,
+  );
+}
+
+export function versionExportUrl(
+  versionId: string,
+  format: "tex" | "pdf" | "docx" | "json",
+  mode?: "canonical" | "source",
+): string {
+  const query = new URLSearchParams({ format });
+  if (mode) query.set("mode", mode);
+  return `${API_ROOT}/versions/${encodeURIComponent(versionId)}/export?${query.toString()}`;
+}
+
+export function listFacts(): Promise<FactsList> {
+  return request<FactsList>("/facts?limit=100");
+}
+
+export function createFact(factText: string): Promise<Fact> {
+  return request<Fact>("/facts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ fact_text: factText, source: "user" }),
+  });
+}
+
+export function deleteFact(factId: string): Promise<void> {
+  return request<void>(`/facts/${encodeURIComponent(factId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function deleteAccount(): Promise<DeleteAllResponse> {
+  return request<DeleteAllResponse>("/account", { method: "DELETE" });
+}
+
+export function purgeAccount(olderThanDays?: number): Promise<PurgeResponse> {
+  return request<PurgeResponse>("/account/purge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(
+      olderThanDays ? { older_than_days: olderThanDays } : {},
+    ),
+  });
 }
 
 export function isAbortError(error: unknown): boolean {

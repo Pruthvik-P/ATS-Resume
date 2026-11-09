@@ -63,9 +63,9 @@ export default function StartPage() {
                   Start with one job.
                 </h1>
                 <p className="mt-4 max-w-xl text-small leading-relaxed text-muted">
-                  Upload your resume and paste the description you are actually
-                  applying to. One document, one role, one honest read — no
-                  queue, no auto-apply.
+                  Upload your resume and paste or link the description you are
+                  actually applying to. One document, one role, one honest read —
+                  no queue, no auto-apply.
                 </p>
               </div>
 
