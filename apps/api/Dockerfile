@@ -12,7 +12,7 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md ./
 COPY app ./app
-RUN pip install --upgrade pip && pip install ".[postgres,pdf]"
+RUN pip install --upgrade pip && pip install ".[postgres,pdf,nlp,redis]"
 
 COPY alembic.ini ./
 COPY alembic ./alembic

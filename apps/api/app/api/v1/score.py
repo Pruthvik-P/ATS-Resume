@@ -5,10 +5,12 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, SessionDep, as_uuid, record_audit
 from app.api.v1.helpers import load_inputs
+from app.core.config import settings
 from app.core.errors import NotFoundError
 from app.db.models import Resume, ResumeVersion, ScoreReportRow
 from app.schemas.score import ScoreReport, ScoreRequest
-from app.services.scoring.engine import build_score_report
+from app.services.scoring.engine import build_score_report, grade_for
+from app.services.scoring.judge import run_llm_judge
 
 router = APIRouter(tags=["scoring"])
 
@@ -23,6 +25,19 @@ async def create_score(
     report = build_score_report(
         resume_id=str(resume.id), jd_id=str(jd.id), document=document, analysis=analysis
     )
+    judge = await run_llm_judge(document, analysis, report)
+    if judge:
+        report.judge = judge
+        blend = max(0.0, min(1.0, settings.llm_judge_blend_weight))
+        if blend:
+            ceiling = min((cap.cap for cap in report.caps), default=100.0)
+            adjusted = min(
+                ceiling, report.overall_score + float(judge["adjustment"]) * blend
+            )
+            report.overall_score = round(max(0.0, adjusted), 1)
+            report.grade = grade_for(report.overall_score)
+        report.model_versions["judge"] = f"{judge['provider']}:{judge['model']}"
+        report.model_versions["judge_prompt"] = str(judge["prompt_version"])
 
     latest_version = await session.scalar(
         select(ResumeVersion)

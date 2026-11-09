@@ -22,6 +22,7 @@ from app.services.llm.base import get_llm_provider
 from app.services.llm.prompts import PROMPT_VERSION, REWRITER_SYSTEM_PROMPT
 from app.services.scoring.engine import build_score_report
 from app.services.verifier import verify_rewrite, verify_skill_reorder
+from app.services.versioning import optimiser_model_versions
 from app.taxonomy.skills import canonical_for, find_skills
 
 logger = get_logger(__name__)
@@ -582,6 +583,7 @@ async def run_optimisation(
     if not any(proposal.truthfulness == "verified" for proposal in proposals):
         notes.append("No verified changes were available for this resume/JD pair.")
 
+    provider = get_llm_provider()
     return OptimiseResult(
         job_id=job_id,
         resume_id=baseline.resume_id,
@@ -594,11 +596,9 @@ async def run_optimisation(
         proposals=proposals,
         verifier=verifier,
         notes=notes,
-        model_versions={
-            "scoring": "scoring-v1",
-            "optimiser": "deterministic-optimiser-v1",
-            "prompt": PROMPT_VERSION if get_llm_provider().name != "stub" else "n/a",
-            "llm_provider": get_llm_provider().name,
-            "llm_model": settings.llm_model if get_llm_provider().name != "stub" else "n/a",
-        },
+        model_versions=optimiser_model_versions(
+            provider_name=provider.name,
+            prompt_version=PROMPT_VERSION,
+            llm_model=settings.llm_model,
+        ),
     )

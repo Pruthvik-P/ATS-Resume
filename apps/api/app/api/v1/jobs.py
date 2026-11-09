@@ -35,6 +35,7 @@ from app.services.jobs import run_optimise_job
 from app.services.latex.compiler import CompileResult, compile_source
 from app.services.latex.render import render_resume_tex
 from app.services.optimiser import apply_proposals
+from app.services.scoring.embedding_store import store_bullet_embeddings
 from app.services.scoring.engine import build_score_report
 from app.services.verifier import verify_user_edit
 from app.storage.local import get_storage
@@ -345,6 +346,7 @@ async def _persist_accepted_changes(
     ).encode("utf-8")
     await storage.save(snapshot_key, snapshot_bytes)
     job_version.snapshot_url = snapshot_key
+    await store_bullet_embeddings(session, job_version.id, document.canonical)
     # Provenance: the original source artifact that this derived version came
     # from, plus the validation PDF when the sandboxed compiler is enabled.
     if resume.tex_url:

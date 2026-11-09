@@ -76,6 +76,9 @@ class ScoreReport(BaseModel):
     penalties: list[PenaltyApplied] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     parse_fidelity: dict[str, Any] = Field(default_factory=dict)
+    fairness: dict[str, Any] = Field(default_factory=dict)
+    judge: dict[str, Any] = Field(default_factory=dict)
+    calibration: dict[str, Any] = Field(default_factory=dict)
     weights: dict[str, float] = Field(default_factory=dict)
     model_versions: dict[str, str] = Field(default_factory=dict)
     scoring_version: str = "scoring-v1"

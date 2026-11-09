@@ -1,6 +1,6 @@
 # ATS Engine API
 
-FastAPI gateway and Phase 2 LaTeX/parse engine for the AI ATS resume scorer and optimiser.
+FastAPI gateway and Phase 2 LaTeX + AI/NLP engine for the AI ATS resume scorer and optimiser.
 The product and system design live in
 [`ats-resume-optimizer-architecture.md`](../../ats-resume-optimizer-architecture.md).
 
@@ -9,10 +9,19 @@ The product and system design live in
 | Capability | Status |
 |---|---|
 | Upload PDF / DOCX / `.tex` / `.tex` zip | Implemented |
-| Heuristic structuring to a JSON Resume subset | Implemented |
+| Heuristic + optional schema-validated LLM structuring | Implemented (`ATS_LLM_STRUCTURING_ENABLED`) |
 | LaTeX static analysis (ATS risks + hostile-input checks) | Implemented |
 | JD analysis (must/nice skills, seniority, years, knock-outs) | Implemented |
 | Seven-component explainable scoring with caps and penalties | Implemented |
+| Optional constrained LLM judge | Implemented (`ATS_LLM_JUDGE_ENABLED`, bounded blend) |
+| Hashed + optional trained embeddings (bge/e5/gte) | Implemented (`ATS_EMBEDDING_PROVIDER`) |
+| Optional cross-encoder reranker | Implemented (`ATS_RERANKER_ENABLED`) |
+| BM25 baseline + typo-tolerant matching + optional spaCy | Implemented (defaults preserve deterministic scores) |
+| Runtime taxonomy loader (JSON/CSV/JSONL) | Implemented (`ATS_TAXONOMY_PATHS`) |
+| JD analysis cache (memory or Redis) | Implemented |
+| Calibration fit + Spearman validation | Implemented; no labelled corpus ships |
+| Fairness redaction before scoring | Implemented with audit counts |
+| One master resume → multi-JD preview | Implemented (`POST /resumes/{id}/tailor`) |
 | Truthfulness-constrained optimisation proposals + accept/reject | Implemented |
 | Accepted changes → derived resume version + score report | Implemented; validation PDF when the sandboxed compiler is enabled |
 | Facts Bank | Implemented |
@@ -20,9 +29,8 @@ The product and system design live in
 | Sandboxed LaTeX compile + PDF parse-fidelity comparison | Implemented, opt-in (`ATS_LATEX_COMPILE_ENABLED`); worker image required |
 | Zip / `\input` / `\include` resolution | Implemented |
 | OCR for scanned PDFs | Optional (`ATS_OCR_ENABLED` + Tesseract + `.[ocr]`) |
-| Trained embeddings / pgvector search | Not yet (Phase 2) — see `HashedEmbedder` |
+| Embedding persistence + search (JSON/pgvector) | Implemented (`POST /search/similar-bullets`) |
 | Celery/Temporal worker | Not yet — jobs run in-process |
-| LLM structuring / rewriting | Pluggable; ships as a deterministic stub |
 | PDF/DOCX/TEX export, source patching, diff UI | Not yet (Phase 3) |
 
 See [`pending.md`](../../pending.md) at the repository root for the full,
@@ -47,7 +55,7 @@ required unless `ATS_API_KEY` is set.
 ### Tests and checks
 
 ```bash
-uv run pytest -q          # 79 tests
+uv run pytest -q          # 117 tests
 uv run ruff check app tests
 ```
 
@@ -71,6 +79,8 @@ All routes are under `/v1`.
 | GET | `/scores/{id}` | Retrieve a stored score |
 | GET | `/resumes/{id}/scores` | Score history |
 | POST | `/optimise` | `{resume_id, jd_id, target_score?, options}` → async job |
+| POST | `/resumes/{id}/tailor` | Preview one resume against multiple JDs |
+| POST | `/search/similar-bullets` | Cosine search over stored bullet embeddings |
 | GET | `/jobs/{id}` | Job status + proposals |
 | GET | `/jobs/{id}/events` | SSE progress stream |
 | POST | `/jobs/{id}/changes/{change_id}` | Accept/reject one proposal |
@@ -150,23 +160,26 @@ pattern is `[ADD METRIC: quantify scale, % improvement, or time saved]`.
 ```
 apps/api/
 ├── app/
-│   ├── api/v1/          # routers: resumes, jds, score, jobs, facts
+│   ├── api/v1/          # routers: resumes, jds, score, jobs, facts, search, tailor
 │   ├── core/            # settings, JSON logging, error envelope
 │   ├── db/              # SQLAlchemy 2 models + async session
 │   ├── schemas/         # Pydantic v2 contracts
 │   ├── services/
-│   │   ├── ingest/      # pdf, docx, latex, heuristic structurer
+│   │   ├── ingest/      # pdf, docx, latex, heuristic + LLM structurer
 │   │   ├── latex/       # project resolution, sandbox compile client, renderer
-│   │   ├── scoring/     # 7 components + engine + embedder
-│   │   ├── llm/         # provider interface + versioned prompts
+│   │   ├── scoring/     # 7 components + engine + embeddings + BM25 + rerank + judge
+│   │   ├── llm/         # retrying provider interface + versioned prompts
 │   │   ├── jd_analyser.py
+│   │   ├── jd_cache.py  # memory/Redis JD cache
 │   │   ├── optimiser.py
+│   │   ├── tailoring.py # multi-JD preview
+│   │   ├── versioning.py
 │   │   ├── verifier.py
 │   │   └── fetch.py     # SSRF-guarded JD URL fetch
 │   ├── storage/         # local storage behind a Protocol
-│   └── taxonomy/        # skill aliases + categories
-├── alembic/             # initial schema migration
-└── tests/               # API, ingest, scoring, verifier tests
+│   └── taxonomy/        # curated aliases + external JSON/CSV loader
+├── alembic/             # schema + P0 integrity + optional pgvector migrations
+└── tests/               # API, ingest, scoring, LLM, cache, calibration tests
 ```
 
 ## Data model
@@ -174,8 +187,10 @@ apps/api/
 `users`, `resumes`, `resume_versions`, `job_descriptions`, `score_reports`,
 `facts_bank`, `bullets`, `jobs`, `audit_log` — matching doc §6.
 
-Embeddings are stored as JSON for portability. The pgvector migration is a
-Phase 2 change; the column shape and interface are already in place.
+Embeddings are stored as JSON for portability and persisted for JDs and resume-version
+bullets. `ATS_EMBEDDING_STORE_BACKEND=pgvector` uses the Postgres-only migration
+`7a3d9f2c1e44_phase2_embeddings.py` to add native `vector` columns and ivfflat indexes;
+search falls back to JSON cosine when pgvector is unavailable.
 
 ## Configuration
 
@@ -186,11 +201,38 @@ See [`.env.example`](.env.example). Highlights:
 - `ATS_API_KEY` — when set, required as `X-API-Key` (or `?api_key=` for SSE)
 - `ATS_ALLOWED_ORIGINS` — comma-separated CORS origins
 - `ATS_LLM_PROVIDER` — `stub` (default), `openai`, or `anthropic`
+- `ATS_LLM_STRUCTURING_ENABLED` / `ATS_LLM_JUDGE_ENABLED` — opt-in schema-validated
+  structuring and bounded judge
+- `ATS_LLM_MAX_RETRIES`, `ATS_LLM_RETRY_BACKOFF_SECONDS`,
+  `ATS_LLM_INPUT_COST_PER_MILLION`, `ATS_LLM_OUTPUT_COST_PER_MILLION` — provider
+  resilience and cost accounting
+- `ATS_EMBEDDING_PROVIDER` — `hashed` (default) or `sentence-transformers`
+- `ATS_EMBEDDING_STORE_BACKEND` — `json` (default) or `pgvector` on PostgreSQL
+- `ATS_EMBEDDING_VECTOR_DIM` — dimension for the Postgres `vector` column (set before
+  the migration; 512 matches the default hashed embedder, 384 fits bge-small)
+- `ATS_RERANKER_ENABLED`, `ATS_BM25_WEIGHT`, `ATS_FUZZY_MATCHING_ENABLED`,
+  `ATS_SPACY_ENABLED` — optional NLP quality controls
+- `ATS_TAXONOMY_PATHS` — comma-separated JSON/CSV/JSONL taxonomy files
+- `ATS_JD_CACHE_BACKEND` / `ATS_REDIS_URL` — `memory` (default) or `redis`
+- `ATS_CALIBRATION_ENABLED` / `ATS_CALIBRATION_PATH` — frozen logistic calibration
+- `ATS_FAIRNESS_REDACTION_ENABLED` — anonymise the scoring view (default on)
 - `ATS_LATEX_COMPILE_ENABLED` — `false` by default; enables the sandboxed compiler
 - `ATS_LATEX_COMPILE_ENGINE` — `auto` (HTTP worker → Docker → local), `docker`, or `local`
 - `ATS_LATEX_WORKER_URL` — long-lived worker URL, e.g. `http://localhost:8099`
 - `ATS_LATEX_WORKER_IMAGE` — image used for the one-shot Docker fallback
 - `ATS_OCR_ENABLED` — enables the optional Tesseract fallback
+
+### AI/NLP pipeline
+
+The deterministic hashed embedder and heuristic structurer remain the default, so the
+offline test suite is reproducible. The optional track adds:
+
+- schema-validated LLM structuring with Pydantic fallback;
+- trained embeddings / cross-encoder reranking behind lazy optional imports;
+- BM25, typo-tolerant matching, and optional spaCy lemmatisation;
+- runtime taxonomy loading, Redis/memory JD caching, calibration utilities;
+- fairness redaction with per-report redaction counts;
+- a version manifest (`scoring-v2`) covering every model/prompt that affected a score.
 
 ### LaTeX pipeline
 
@@ -209,7 +251,7 @@ with static analysis instead of rejecting the upload.
 docker compose -f infra/docker-compose.yml up --build -d
 ```
 
-This starts Postgres 16 + pgvector, Redis (reserved for Phase 2), the sandboxed
+This starts Postgres 16 + pgvector, Redis (optional JD cache), the sandboxed
 LaTeX worker, the API on <http://localhost:8000>, and the Next.js UI on
 <http://localhost:3000>. The API container runs `alembic upgrade head` before
 starting Uvicorn, and the UI starts only after the API health check passes.
@@ -235,8 +277,15 @@ commands.
 - **The LaTeX worker is a separate image.** The API image stays small; the worker
   carries TeX Live, runs read-only with limits, and is attached to an internal-only
   network in Compose.
-- **Semantic scoring uses a deterministic hashed n-gram embedder**, not a
-  trained model. Thresholds are recorded in score details so calibration is
-  visible rather than implied.
-- **Authentication is a single shared API key.** Per-user auth (Clerk/Auth0)
-  is Phase 2; the `users` table and ownership checks are already in place.
+- **Semantic scoring uses a deterministic hashed n-gram embedder by default.** Trained
+  bge/e5/gte embeddings and a cross-encoder reranker are opt-in; thresholds and the
+  active model are recorded in score details and the version manifest.
+- **LLM features are opt-in and fail closed.** Structuring validates with Pydantic and
+  falls back to the heuristic result; the judge is clamped and blended only within the
+  deterministic cap; providers retry with bounded backoff and record cost/usage.
+- **Fairness redaction is signal removal, not a statistical audit.** Scoring uses an
+  anonymised view and reports redaction counts; labelled demographic outcomes are needed
+  for a true group-fairness study.
+- **Authentication is a single shared key or per-user API keys.** SSO (Clerk/Auth0),
+  plans, and billing remain future work; the `users` table and ownership checks are in
+  place.

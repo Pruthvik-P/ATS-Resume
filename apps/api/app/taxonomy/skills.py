@@ -8,8 +8,13 @@ canonical name, aliases, category, and ambiguity flag.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from app.core.config import settings
+from app.taxonomy.loader import load_taxonomy_records
 
 
 @dataclass(frozen=True)
@@ -153,15 +158,31 @@ SKILLS: tuple[Skill, ...] = (
     _skill("Collaboration", "cross-functional", "cross functional", category="soft"),
 )
 
-_ALIAS_INDEX: dict[str, Skill] = {}
-for _entry in SKILLS:
-    for _name in _entry.all_names:
-        _ALIAS_INDEX.setdefault(_name.lower(), _entry)
+_EXTRA_SKILLS: list[Skill] = []
+_LOADED_TAXONOMY_PATHS: set[str] = set()
 
-# Longest alias first so "machine learning" wins over "ml"-style fragments.
-_ORDERED_ALIASES: list[tuple[str, Skill]] = sorted(
-    _ALIAS_INDEX.items(), key=lambda item: len(item[0]), reverse=True
-)
+_ALIAS_INDEX: dict[str, Skill] = {}
+_ORDERED_ALIASES: list[tuple[str, Skill]] = []
+_COMPILED: list[tuple[re.Pattern[str], Skill, str]] = []
+
+
+def _all_skills() -> tuple[Skill, ...]:
+    return (*SKILLS, *_EXTRA_SKILLS)
+
+
+def _rebuild_indexes() -> None:
+    global _ALIAS_INDEX, _ORDERED_ALIASES, _COMPILED
+    _ALIAS_INDEX = {}
+    for entry in _all_skills():
+        for name in entry.all_names:
+            _ALIAS_INDEX.setdefault(name.lower(), entry)
+    # Longest alias first so "machine learning" wins over "ml"-style fragments.
+    _ORDERED_ALIASES = sorted(
+        _ALIAS_INDEX.items(), key=lambda item: len(item[0]), reverse=True
+    )
+    _COMPILED = [
+        (_alias_pattern(alias), skill, alias) for alias, skill in _ORDERED_ALIASES
+    ]
 
 
 def _alias_pattern(alias: str) -> re.Pattern[str]:
@@ -169,9 +190,67 @@ def _alias_pattern(alias: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![a-z0-9]){escaped}(?![a-z0-9])", re.IGNORECASE)
 
 
-_COMPILED: list[tuple[re.Pattern[str], Skill, str]] = [
-    (_alias_pattern(alias), skill, alias) for alias, skill in _ORDERED_ALIASES
-]
+def load_external_taxonomy(path: str | Path) -> int:
+    """Merge a JSON/CSV taxonomy into the runtime registry.
+
+    Existing canonicals are never removed. Duplicate canonical names are kept
+    once in the search index; new aliases still become matchable.
+    """
+
+    resolved = str(Path(path).expanduser())
+    records = load_taxonomy_records(resolved)
+    added = 0
+    for record in records:
+        _EXTRA_SKILLS.append(
+            Skill(
+                canonical=record["canonical"],
+                aliases=tuple(record["aliases"]),
+                category=record["category"],
+                ambiguous=bool(record["ambiguous"]),
+            )
+        )
+        added += 1
+    _LOADED_TAXONOMY_PATHS.add(resolved)
+    _rebuild_indexes()
+    return added
+
+
+def load_configured_taxonomies() -> int:
+    """Load every path in `ATS_TAXONOMY_PATHS` once."""
+
+    if not settings.taxonomy_paths:
+        return 0
+    added = 0
+    for raw in settings.taxonomy_paths.split(","):
+        path = raw.strip()
+        if not path or path in _LOADED_TAXONOMY_PATHS:
+            continue
+        try:
+            added += load_external_taxonomy(path)
+        except (OSError, ValueError):
+            # A missing/broken taxonomy file should not break scoring.
+            continue
+    return added
+
+
+def reset_external_taxonomy() -> None:
+    _EXTRA_SKILLS.clear()
+    _LOADED_TAXONOMY_PATHS.clear()
+    _rebuild_indexes()
+
+
+def taxonomy_version() -> str:
+    load_configured_taxonomies()
+    payload = "|".join(
+        f"{skill.canonical.lower()}:"
+        + ",".join(sorted(alias.lower() for alias in skill.aliases))
+        for skill in _all_skills()
+    )
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+    return f"{settings.taxonomy_version}:{digest}"
+
+
+_rebuild_indexes()
 
 
 @dataclass
@@ -210,6 +289,7 @@ def _looks_like_acronym_context(text: str, start: int, end: int) -> bool:
 def find_skills(text: str) -> list[SkillMatch]:
     """Return non-overlapping canonical skill matches, longest alias first."""
 
+    load_configured_taxonomies()
     matches: list[SkillMatch] = []
     taken: list[tuple[int, int]] = []
     for pattern, skill, alias in _COMPILED:
@@ -248,16 +328,25 @@ def find_skills(text: str) -> list[SkillMatch]:
 
 
 def canonical_for(value: str) -> str | None:
+    load_configured_taxonomies()
     entry = _ALIAS_INDEX.get(value.strip().lower())
     return entry.canonical if entry else None
 
 
 def category_for(canonical: str) -> str:
-    for skill in SKILLS:
+    load_configured_taxonomies()
+    for skill in _all_skills():
         if skill.canonical == canonical:
             return skill.category
     return "general"
 
 
 def canonical_skills() -> list[str]:
-    return [skill.canonical for skill in SKILLS]
+    load_configured_taxonomies()
+    seen: set[str] = set()
+    values: list[str] = []
+    for skill in _all_skills():
+        if skill.canonical not in seen:
+            seen.add(skill.canonical)
+            values.append(skill.canonical)
+    return values

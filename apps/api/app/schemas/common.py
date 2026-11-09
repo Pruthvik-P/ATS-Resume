@@ -62,6 +62,7 @@ class MetaResponse(BaseModel):
     embedding_model: str
     llm_provider: str
     latex_compile: dict[str, Any] = Field(default_factory=dict)
+    ai: dict[str, Any] = Field(default_factory=dict)
     phase: str = "1"
 
 

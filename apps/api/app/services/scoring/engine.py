@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.schemas.jd import JDAnalysis
 from app.schemas.resume import ResumeDocument
 from app.schemas.score import (
@@ -11,16 +12,58 @@ from app.schemas.score import (
     ScoreBreakdown,
     ScoreReport,
 )
+from app.services.scoring.calibration import (
+    FEATURE_NAMES,
+    CalibrationModel,
+    load_calibration,
+)
 from app.services.scoring.education import score_education
-from app.services.scoring.embedding import HashedEmbedder
 from app.services.scoring.experience import score_experience
+from app.services.scoring.fairness import scoring_view
 from app.services.scoring.impact import score_impact
 from app.services.scoring.keyword import score_keywords
 from app.services.scoring.parseability import score_parseability
 from app.services.scoring.readability import score_readability
 from app.services.scoring.semantic import score_semantics
 from app.services.text import tokenize
+from app.services.versioning import SCORING_ENGINE_VERSION, scoring_model_versions
 from app.taxonomy.skills import canonical_skills
+
+logger = get_logger(__name__)
+
+
+def _calibration_details(
+    breakdown: ScoreBreakdown,
+) -> tuple[dict[str, object], CalibrationModel | None]:
+    if not settings.calibration_enabled or not settings.calibration_path:
+        return {}, None
+    try:
+        model = load_calibration(settings.calibration_path)
+    except (OSError, ValueError, KeyError) as exc:
+        logger.warning(
+            "Calibration model unavailable; leaving the deterministic score unchanged",
+            extra={"path": settings.calibration_path, "error": str(exc)},
+        )
+        return {}, None
+    features = [
+        breakdown.keyword_match.score,
+        breakdown.semantic_relevance.score,
+        breakdown.experience_fit.score,
+        breakdown.parseability.score,
+        breakdown.impact.score,
+        breakdown.education.score,
+        breakdown.readability.score,
+    ]
+    probability = model.predict_proba(features)
+    return (
+        {
+            "version": model.version,
+            "features": dict(zip(FEATURE_NAMES, features, strict=False)),
+            "probability": round(probability, 4),
+            "blend_weight": max(0.0, min(1.0, settings.calibration_blend_weight)),
+        },
+        model,
+    )
 
 
 def grade_for(score: float) -> str:
@@ -221,7 +264,8 @@ def build_score_report(
     analysis: JDAnalysis,
 ) -> ScoreReport:
     weights = settings.scoring_weights
-    resume = document.canonical
+    fairness = scoring_view(document.canonical)
+    resume = fairness.resume
 
     keyword, keyword_details = score_keywords(resume, analysis)
     semantic, semantic_details = score_semantics(resume, analysis)
@@ -325,13 +369,22 @@ def build_score_report(
             "missing_fields": parseability.missing_fields,
             "issues": parseability.issues,
         },
+        fairness=fairness.audit if settings.fairness_redaction_enabled else {},
         weights=weights.as_dict(),
-        model_versions={
-            "scoring": "scoring-v1",
-            "embedding": HashedEmbedder.name,
-            "structuring": document.structuring.model,
-            "jd_analyser": analysis.analyser_version,
-            "prompt": "n/a",
-        },
+        scoring_version=SCORING_ENGINE_VERSION,
+        model_versions=scoring_model_versions(document, analysis),
     )
+    calibration, model = _calibration_details(breakdown)
+    if calibration:
+        report.calibration = calibration
+        report.model_versions["calibration"] = str(calibration["version"])
+        weight = float(calibration["blend_weight"])
+        if model is not None and weight > 0:
+            ceiling = min((cap.cap for cap in report.caps), default=100.0)
+            blended = (1 - weight) * report.overall_score + weight * (
+                float(calibration["probability"]) * 100
+            )
+            report.overall_score = round(max(0.0, min(ceiling, blended)), 1)
+            report.grade = grade_for(report.overall_score)
+            calibration["score_after_calibration"] = report.overall_score
     return report

@@ -9,7 +9,8 @@ from app.core.errors import AppError, NotFoundError
 from app.db.models import JobDescription
 from app.schemas.jd import JDAnalysis, JDAnalysisResponse, JDCreateRequest
 from app.services.fetch import fetch_jd_from_url
-from app.services.jd_analyser import analyse_jd
+from app.services.jd_cache import analyse_jd_cached
+from app.services.scoring.embedding_store import store_jd_embedding
 
 router = APIRouter(prefix="/jds", tags=["job descriptions"])
 
@@ -37,8 +38,12 @@ async def create_jd(
             status_code=413,
         )
 
-    analysis, analysis_warnings = analyse_jd(raw_text, title=payload.title, company=payload.company)
+    analysis, analysis_warnings, cache_hit = await analyse_jd_cached(
+        raw_text, title=payload.title, company=payload.company
+    )
     warnings.extend(analysis_warnings)
+    if cache_hit:
+        warnings.append("Served from the JD analysis cache.")
 
     row = JobDescription(
         user_id=user.id,
@@ -48,6 +53,7 @@ async def create_jd(
     )
     session.add(row)
     await session.flush()
+    await store_jd_embedding(session, row)
     await record_audit(
         session,
         user_id=user.id,

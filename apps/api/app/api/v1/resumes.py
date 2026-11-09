@@ -14,8 +14,10 @@ from app.core.errors import NotFoundError, UploadTooLargeError
 from app.core.ratelimit import enforce_rate_limit
 from app.db.models import Resume, ResumeVersion
 from app.schemas.resume import ResumeRead, ResumeSummary, ResumeVersionRead
+from app.services.ingest.llm_structurer import apply_llm_structuring
 from app.services.ingest.pipeline import ingest_bytes
 from app.services.retention import delete_resumes
+from app.services.scoring.embedding_store import store_bullet_embeddings
 from app.storage.local import get_storage
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -50,6 +52,7 @@ async def upload_resume(
 
     filename = file.filename or "resume"
     result = await asyncio.to_thread(ingest_bytes, filename, file.content_type, data)
+    result.document = await apply_llm_structuring(result.document, result.raw_text)
 
     resume = Resume(
         user_id=user.id,
@@ -83,6 +86,7 @@ async def upload_resume(
     )
     session.add(version)
     await session.flush()
+    await store_bullet_embeddings(session, version.id, result.document.canonical)
 
     snapshot_key = f"resumes/{resume.id}/versions/{version.id}/rev-1.json"
     snapshot_bytes = json.dumps(
