@@ -34,6 +34,7 @@ services:
       ATS_ALLOWED_ORIGINS: http://localhost:3000
       ATS_STORAGE_DIR: /data/uploads
       ATS_LLM_PROVIDER: stub
+      ATS_API_KEY: ${ATS_API_KEY:-}
     ports:
       - "8000:8000"
     volumes:
@@ -44,6 +45,20 @@ services:
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
+
+  web:
+    build:
+      context: ../apps/web
+    environment:
+      # Server-side only: the browser calls this container at /api/backend/*.
+      API_BASE_URL: http://api:8000
+      ATS_API_KEY: ${ATS_API_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
 
 volumes:
   pgdata:

@@ -17,6 +17,21 @@ npm run dev
 
 Open <http://localhost:3000/start>.
 
+## Run it in Docker
+
+The image builds the app with `output: "standalone"`, so the runtime container
+carries only the server and its traced dependencies. From the repository root:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Compose starts Postgres, the API, and this app, then serves the UI on
+<http://localhost:3000>. Inside the network the app is configured with
+`API_BASE_URL=http://api:8000`; nothing needs to run on the host. Set
+`ATS_API_KEY` (shell or `infra/.env`) to protect both the API and the proxy with
+the same key.
+
 ## Environment
 
 | Variable | Default | Purpose |
