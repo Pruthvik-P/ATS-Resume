@@ -16,6 +16,7 @@ build/
 .data/
 apps/api/.env
 apps/api/.env.local
+infra/.env
 apps/api/alembic/versions/*.py.tmp
 
 # --- Node / Next.js ---
