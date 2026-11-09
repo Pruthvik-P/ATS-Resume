@@ -184,13 +184,15 @@ See [`.env.example`](.env.example). Highlights:
 ## Docker
 
 ```bash
-docker compose -f infra/docker-compose.yml up --build
+docker compose -f infra/docker-compose.yml up --build -d
 ```
 
 This starts Postgres 16 + pgvector, Redis (reserved for Phase 2), the API on
 <http://localhost:8000>, and the Next.js UI on <http://localhost:3000>. The API
 container runs `alembic upgrade head` before starting Uvicorn, and the UI starts
-only after the API health check passes.
+only after the API health check passes. See the root
+[`README.md`](../../README.md) for logs, stop, reset, and optional API-key
+commands.
 
 ## Deliberate deviations from the doc
 

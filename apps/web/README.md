@@ -23,14 +23,17 @@ The image builds the app with `output: "standalone"`, so the runtime container
 carries only the server and its traced dependencies. From the repository root:
 
 ```bash
-docker compose -f infra/docker-compose.yml up --build
+docker compose -f infra/docker-compose.yml up --build -d
 ```
 
 Compose starts Postgres, the API, and this app, then serves the UI on
 <http://localhost:3000>. Inside the network the app is configured with
-`API_BASE_URL=http://api:8000`; nothing needs to run on the host. Set
-`ATS_API_KEY` (shell or `infra/.env`) to protect both the API and the proxy with
-the same key.
+`API_BASE_URL=http://api:8000`; nothing needs to run on the host. After changing
+code, rerun the same command — `--build` recompiles the image.
+
+Set `ATS_API_KEY` (shell or `infra/.env`) to protect both the API and the proxy
+with the same key. The root [`README.md`](../../README.md) lists the log, stop,
+and reset commands.
 
 ## Environment
 
