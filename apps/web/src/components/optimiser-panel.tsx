@@ -85,13 +85,19 @@ export function OptimiserPanel({
   result,
   progress,
   onDecide,
+  onEdit,
   pendingChangeId,
   decisionError,
 }: {
   job: JobRead | null;
   result: OptimiseResult | null;
   progress: number;
-  onDecide: (changeId: string, status: "accepted" | "rejected") => void;
+  onDecide: (
+    changeId: string,
+    status: "accepted" | "rejected",
+    proposed?: string,
+  ) => void;
+  onEdit: (changeId: string, proposed: string) => Promise<void>;
   pendingChangeId: string | null;
   decisionError: string | null;
 }) {
@@ -220,7 +226,10 @@ export function OptimiserPanel({
                 key={proposal.id}
                 proposal={proposal}
                 pending={pendingChangeId === proposal.id}
-                onDecide={(status) => onDecide(proposal.id, status)}
+                onDecide={(status, proposed) =>
+                  onDecide(proposal.id, status, proposed)
+                }
+                onEdit={(proposed) => onEdit(proposal.id, proposed)}
               />
             ))}
           </div>
@@ -241,7 +250,10 @@ export function OptimiserPanel({
                 key={proposal.id}
                 proposal={proposal}
                 pending={pendingChangeId === proposal.id}
-                onDecide={(status) => onDecide(proposal.id, status)}
+                onDecide={(status, proposed) =>
+                  onDecide(proposal.id, status, proposed)
+                }
+                onEdit={(proposed) => onEdit(proposal.id, proposed)}
               />
             ))}
           </div>
@@ -257,7 +269,10 @@ export function OptimiserPanel({
                 key={proposal.id}
                 proposal={proposal}
                 pending={pendingChangeId === proposal.id}
-                onDecide={(status) => onDecide(proposal.id, status)}
+                onDecide={(status, proposed) =>
+                  onDecide(proposal.id, status, proposed)
+                }
+                onEdit={(proposed) => onEdit(proposal.id, proposed)}
               />
             ))}
           </div>

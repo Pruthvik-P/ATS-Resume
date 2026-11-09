@@ -240,9 +240,11 @@ def _plan_deterministic(
             if not excerpt:
                 continue
             bullet_id = None
+            bullet_text = ""
             for ref, text in _iter_bullet_refs(resume):
                 if text.startswith(excerpt[:40]):
                     bullet_id = ref
+                    bullet_text = text
                     break
             if not bullet_id:
                 continue
@@ -251,9 +253,9 @@ def _plan_deterministic(
                     kind="placeholder_metric",
                     section="experience",
                     target_ref=bullet_id,
-                    original=excerpt,
+                    original=bullet_text,
                     proposed=(
-                        excerpt
+                        bullet_text
                         + " [ADD METRIC: quantify scale, % improvement, or time saved]"
                     ),
                     rationale=(
@@ -383,6 +385,33 @@ async def _plan_llm(
     return proposals, verifier
 
 
+_BULLET_REF_RE = re.compile(r"^(work|projects)\[(\d+)\]\.highlights\[(\d+)\]$")
+
+
+def _set_bullet(resume: Resume, ref: str | None, text: str) -> bool:
+    """Replace one highlight by its stable ``target_ref`` path.
+
+    Matching by the original string is not enough: a metric placeholder keeps
+    the whole bullet as ``original``, and an edited proposal may no longer match
+    its source text. The target reference is the source of truth.
+    """
+
+    if not ref:
+        return False
+    match = _BULLET_REF_RE.match(ref)
+    if not match:
+        return False
+    section, item_index, highlight_index = match.group(1), int(match.group(2)), int(match.group(3))
+    collection = resume.work if section == "work" else resume.projects
+    if item_index >= len(collection):
+        return False
+    item = collection[item_index]
+    if highlight_index >= len(item.highlights):
+        return False
+    item.highlights[highlight_index] = text
+    return True
+
+
 def _apply(
     document: ResumeDocument,
     proposals: list[ChangeProposal],
@@ -391,17 +420,23 @@ def _apply(
     updated = document.model_copy(deep=True)
     resume = updated.canonical
 
-    rewrite_map = {
-        proposal.original: proposal.proposed
-        for proposal in proposals
-        if proposal.kind == "rewrite_bullet"
-    }
-    for work in resume.work:
-        work.highlights = [rewrite_map.get(highlight, highlight) for highlight in work.highlights]
-    for project in resume.projects:
-        project.highlights = [
-            rewrite_map.get(highlight, highlight) for highlight in project.highlights
-        ]
+    for proposal in proposals:
+        if proposal.kind not in {"rewrite_bullet", "placeholder_metric"}:
+            continue
+        if _set_bullet(resume, proposal.target_ref, proposal.proposed):
+            continue
+        # Fallback for legacy proposals without a target_ref: replace the exact
+        # original text wherever it still occurs.
+        for work in resume.work:
+            work.highlights = [
+                proposal.proposed if highlight == proposal.original else highlight
+                for highlight in work.highlights
+            ]
+        for project in resume.projects:
+            project.highlights = [
+                proposal.proposed if highlight == proposal.original else highlight
+                for highlight in project.highlights
+            ]
 
     if any(proposal.kind == "reorder_skills" for proposal in proposals):
         _, reordered = _reorder_skills(resume, analysis)

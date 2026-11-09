@@ -13,6 +13,7 @@ os.environ["ATS_API_KEY"] = ""
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
+from app.core.ratelimit import reset_rate_limits  # noqa: E402
 from app.db.models import Base  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
@@ -72,24 +73,36 @@ Must be authorized to work in the US. No visa sponsorship available.
 
 @pytest_asyncio.fixture
 async def client():
+    reset_rate_limits()
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
         await connection.run_sync(Base.metadata.create_all)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as http_client:
-        yield http_client
+    try:
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http_client:
+            yield http_client
+    finally:
+        # The limiter is process-wide; tests must not leak counters into each other.
+        reset_rate_limits()
 
 
-async def upload_sample(client) -> dict:
+async def upload_sample(client, headers: dict[str, str] | None = None) -> dict:
     response = await client.post(
         "/v1/resumes",
         files={"file": ("jane.tex", SAMPLE_TEX.encode("utf-8"), "application/x-tex")},
+        headers=headers,
     )
     assert response.status_code == 201, response.text
     return response.json()
 
 
-async def create_sample_jd(client) -> dict:
-    response = await client.post("/v1/jds", json={"text": SAMPLE_JD, "title": "Senior Backend Engineer"})
+async def create_sample_jd(client, headers: dict[str, str] | None = None) -> dict:
+    response = await client.post(
+        "/v1/jds",
+        json={"text": SAMPLE_JD, "title": "Senior Backend Engineer"},
+        headers=headers,
+    )
     assert response.status_code == 201, response.text
     return response.json()

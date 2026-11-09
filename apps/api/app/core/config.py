@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Auth is a single shared key in Phase 1. When unset, the API is open
     # (local development and tests only).
     api_key: str | None = None
+    # Optional per-user API keys: "email=key,email2=key2". When provided, this
+    # takes precedence over api_key and each key maps to its own user row.
+    api_keys: str | None = None
 
     # Comma-separated list, e.g. "http://localhost:3000,https://app.example.com"
     allowed_origins: str = "http://localhost:3000"
@@ -76,9 +79,32 @@ class Settings(BaseSettings):
 
     job_stale_after_seconds: int = 900
 
+    # Retention is opt-in. `retention_days` is the default window used by
+    # POST /v1/account/purge; a value of null means "keep until user deletes".
+    retention_days: int | None = None
+
+    # In-process abuse protection. These are per-identity, per-window limits.
+    # 0 disables the corresponding limit.
+    rate_limit_requests_per_minute: int = 180
+    rate_limit_uploads_per_minute: int = 20
+    rate_limit_optimise_jobs_per_hour: int = 30
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
+    @property
+    def user_api_keys(self) -> dict[str, str]:
+        """Parse ``email=key,email2=key2`` into a lookup table."""
+
+        if not self.api_keys:
+            return {}
+        mapping: dict[str, str] = {}
+        for item in self.api_keys.split(","):
+            email, separator, key = item.partition("=")
+            if separator and email.strip() and key.strip():
+                mapping[email.strip().lower()] = key.strip()
+        return mapping
 
     @property
     def is_production(self) -> bool:

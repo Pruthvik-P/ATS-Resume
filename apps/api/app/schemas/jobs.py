@@ -31,6 +31,11 @@ class ChangeProposal(BaseModel):
     risk: Literal["low", "medium", "high"] = "low"
     status: ChangeStatus = "pending"
     truthfulness: Literal["verified", "needs_user_input", "rejected"] = "verified"
+    # True when a human supplied or rewrote `proposed`. Such text is treated as
+    # a user-confirmed fact and recorded in the Facts Bank.
+    edited_by_user: bool = False
+    # Verifier feedback from the latest user edit. Empty for generated prose.
+    verification_notes: list[str] = Field(default_factory=list)
 
 
 class VerifierSummary(BaseModel):
@@ -96,17 +101,32 @@ class JobRead(BaseModel):
     finished_at: datetime | None = None
 
 
+class ProposalEditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    proposed: str = Field(min_length=1, max_length=4000)
+    note: str | None = Field(default=None, max_length=500)
+
+
 class ChangeDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["accepted", "rejected"]
     note: str | None = Field(default=None, max_length=500)
+    # Optional last-minute edit. When present it is verified and persisted
+    # before the decision is applied, so the user never has to accept stale text.
+    proposed: str | None = Field(default=None, min_length=1, max_length=4000)
 
 
 class ChangeDecisionResponse(BaseModel):
     job_id: str
     change: ChangeProposal
     score_after_accepted: float
+    version_id: str | None = None
+    score_id: str | None = None
+    snapshot_url: str | None = None
+    previous_status: ChangeStatus | None = None
+    idempotent_replay: bool = False
 
 
 class JobEvent(BaseModel):

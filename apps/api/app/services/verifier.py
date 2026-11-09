@@ -13,6 +13,11 @@ class VerificationResult:
 
 
 _CAPITALIZED_RE = re.compile(r"\b[A-Z][A-Za-z0-9+#.&-]{1,}\b")
+_METRIC_PLACEHOLDER_RE = re.compile(r"\[ADD METRIC:[^\]]*\]", re.IGNORECASE)
+
+
+def has_metric_placeholder(text: str) -> bool:
+    return bool(_METRIC_PLACEHOLDER_RE.search(text))
 
 
 def _proper_nouns(text: str) -> set[str]:
@@ -68,6 +73,29 @@ def verify_rewrite(original: str, proposed: str, facts: list[str]) -> Verificati
         )
 
     return VerificationResult(verified=not reasons, reasons=reasons)
+
+
+def verify_user_edit(original: str, proposed: str, facts: list[str]) -> VerificationResult:
+    """Verify a human-authored edit.
+
+    A user may assert their own numbers (that is the whole point of the metric
+    workflow), so invented numbers are accepted here. New proper nouns still
+    need to exist in the source or the Facts Bank, and the metric placeholder
+    must be resolved before the edit can be accepted.
+    """
+
+    # A human is authoritative about their own wording and numbers. We still
+    # surface verifier warnings so the UI can show what changed, but only an
+    # unresolved placeholder blocks the edit.
+    notes = [
+        reason
+        for reason in verify_rewrite(original, proposed, facts).reasons
+        if not reason.startswith("Invented numeric claim")
+    ]
+    if has_metric_placeholder(proposed):
+        notes.append("The [ADD METRIC: …] placeholder is still present.")
+        return VerificationResult(verified=False, reasons=notes)
+    return VerificationResult(verified=True, reasons=notes)
 
 
 def verify_skill_reorder(original_skills: list[str], proposed_skills: list[str]) -> VerificationResult:

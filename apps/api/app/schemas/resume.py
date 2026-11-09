@@ -173,6 +173,9 @@ class ResumeVersionRead(ORMModel):
     resume_id: str
     version: int
     parent_version_id: str | None = None
+    tex_url: str | None = None
+    pdf_url: str | None = None
+    snapshot_url: str | None = None
     change_log: list[dict[str, Any]] = Field(default_factory=list)
     score_id: str | None = None
     created_at: datetime
