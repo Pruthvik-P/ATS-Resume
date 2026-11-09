@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   createJd,
+  createJdFromUrl,
   createOptimise,
   createScore,
   decideChange,
@@ -24,6 +25,9 @@ import { ScoreReportPanel } from "@/components/score-report-panel";
 import { ParsePanel } from "@/components/parse-panel";
 import { JdPanel } from "@/components/jd-panel";
 import { OptimiserPanel } from "@/components/optimiser-panel";
+import { FactsPanel } from "@/components/facts-panel";
+import { VersionHistoryPanel } from "@/components/version-history-panel";
+import { PrivacyPanel } from "@/components/privacy-panel";
 
 type StepKey = "upload" | "jd" | "score" | "optimise";
 type Phase =
@@ -72,7 +76,7 @@ const ERROR_HINTS: Record<string, string> = {
   hostile_latex:
     "The LaTeX source contains shell-execution or absolute-path constructs and was rejected. Remove them before uploading.",
   jd_url_blocked:
-    "This UI submits pasted text only. URL fetching is blocked by the engine's SSRF guard.",
+    "The engine blocked this URL (private host or SSRF guard) or could not fetch it. Check the URL, or paste the posting text instead.",
   unauthorized:
     "The engine has an API key configured. Set ATS_API_KEY on the Next server to the same value.",
   validation_error:
@@ -138,7 +142,7 @@ function ScanProgress({
       key: "jd",
       detail: jd
         ? `${jd.analysis.must_have.length} must-have · ${jd.analysis.nice_to_have.length} nice-to-have`
-        : "paste a description",
+        : "paste a description or URL",
     },
     {
       key: "score",
@@ -271,6 +275,8 @@ function ErrorPanel({
 export function UploadForm() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jdText, setJdText] = useState("");
+  const [jdUrl, setJdUrl] = useState("");
+  const [jdMode, setJdMode] = useState<"text" | "url">("text");
   const [dragging, setDragging] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("idle");
@@ -282,6 +288,7 @@ export function UploadForm() {
   const [report, setReport] = useState<ScoreReport | null>(null);
   const [job, setJob] = useState<JobRead | null>(null);
   const [result, setResult] = useState<OptimiseResult | null>(null);
+  const [versionRefreshKey, setVersionRefreshKey] = useState(0);
 
   const [pendingChangeId, setPendingChangeId] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
@@ -439,7 +446,9 @@ export function UploadForm() {
   }, [phase, jobId]);
 
   const runScan = async () => {
-    if (!resumeFile || !jdText.trim() || busy) return;
+    const jdReady =
+      jdMode === "url" ? jdUrl.trim().length > 0 : jdText.trim().length > 0;
+    if (!resumeFile || !jdReady || busy) return;
 
     setError(null);
     setResume(null);
@@ -447,6 +456,7 @@ export function UploadForm() {
     setReport(null);
     setJob(null);
     setResult(null);
+    setVersionRefreshKey(0);
     setDecisionError(null);
     setPendingChangeId(null);
     setProgress(8);
@@ -460,7 +470,10 @@ export function UploadForm() {
 
       step = "jd";
       setPhase("analysing");
-      const analysed = await createJd(jdText.trim());
+      const analysed =
+        jdMode === "url"
+          ? await createJdFromUrl(jdUrl.trim())
+          : await createJd(jdText.trim());
       setJd(analysed);
       setProgress(52);
 
@@ -528,6 +541,7 @@ export function UploadForm() {
             }
           : current,
       );
+      setVersionRefreshKey((current) => current + 1);
     } catch (decisionFailure) {
       const scanError = normaliseError(decisionFailure, "optimise");
       setDecisionError(scanError.message);
@@ -574,12 +588,16 @@ export function UploadForm() {
     setPendingChangeId(null);
     setResumeFile(null);
     setJdText("");
+    setJdUrl("");
+    setJdMode("text");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const wordCount = jdText.trim()
     ? jdText.trim().split(/\s+/).filter(Boolean).length
     : 0;
+  const jdReady =
+    jdMode === "url" ? jdUrl.trim().length > 0 : jdText.trim().length > 0;
   const showResults = phase !== "idle";
 
   return (
@@ -598,7 +616,9 @@ export function UploadForm() {
                 <div className="mb-4">
                   <h2 className="text-h3 text-ink">Your source document</h2>
                   <p className="mt-1 text-caption text-muted">
-                    Up to {MAX_MB} MB. LaTeX is read as source text, not compiled.
+                    Up to {MAX_MB} MB. LaTeX projects are compiled when the
+                    sandboxed worker is enabled; otherwise the source is analysed
+                    directly.
                   </p>
                 </div>
 
@@ -674,35 +694,74 @@ export function UploadForm() {
             <div className="border border-line bg-paper">
               <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                 <span className="eyebrow text-muted">02 / job description</span>
-                <span className="font-data text-[9px] uppercase tracking-[0.12em] text-muted">
-                  paste text
-                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setJdMode("text")}
+                    className={`px-2 py-0.5 font-data text-[9px] uppercase tracking-[0.12em] transition-colors ${
+                      jdMode === "text"
+                        ? "bg-accent-soft text-accent-strong"
+                        : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    paste
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJdMode("url")}
+                    className={`px-2 py-0.5 font-data text-[9px] uppercase tracking-[0.12em] transition-colors ${
+                      jdMode === "url"
+                        ? "bg-accent-soft text-accent-strong"
+                        : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    url
+                  </button>
+                </div>
               </div>
               <div className="p-4">
                 <div className="mb-4">
                   <h2 className="text-h3 text-ink">The role you want</h2>
                   <p className="mt-1 text-caption text-muted">
-                    Paste the full posting, including requirements and
-                    nice-to-haves.
+                    {jdMode === "url"
+                      ? "Paste the public posting URL. The engine fetches it through an SSRF guard."
+                      : "Paste the full posting, including requirements and nice-to-haves."}
                   </p>
                 </div>
-                <textarea
-                  value={jdText}
-                  onChange={(event) => setJdText(event.target.value)}
-                  placeholder="Paste the job description here…"
-                  className="min-h-[300px] w-full resize-y border border-line bg-bg/40 p-4 text-small leading-relaxed text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-accent focus:bg-paper"
-                  rows={12}
-                />
+                {jdMode === "url" ? (
+                  <input
+                    value={jdUrl}
+                    onChange={(event) => setJdUrl(event.target.value)}
+                    placeholder="https://company.example/jobs/backend-engineer"
+                    type="url"
+                    className="h-11 w-full border border-line bg-bg/40 px-4 text-small text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-accent focus:bg-paper"
+                  />
+                ) : (
+                  <textarea
+                    value={jdText}
+                    onChange={(event) => setJdText(event.target.value)}
+                    placeholder="Paste the job description here…"
+                    className="min-h-[300px] w-full resize-y border border-line bg-bg/40 p-4 text-small leading-relaxed text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-accent focus:bg-paper"
+                    rows={12}
+                  />
+                )}
                 <div className="mt-3 flex items-center justify-between gap-4">
                   <span className="font-data text-[9px] uppercase tracking-[0.12em] text-muted">
-                    {wordCount > 0
-                      ? `${wordCount.toLocaleString()} words`
-                      : "waiting for a description"}
+                    {jdMode === "url"
+                      ? jdUrl.trim()
+                        ? "public URL ready"
+                        : "waiting for a URL"
+                      : wordCount > 0
+                        ? `${wordCount.toLocaleString()} words`
+                        : "waiting for a description"}
                   </span>
-                  {jdText.length > 0 && (
+                  {(jdText.length > 0 || jdUrl.length > 0) && (
                     <button
                       type="button"
-                      onClick={() => setJdText("")}
+                      onClick={() => {
+                        setJdText("");
+                        setJdUrl("");
+                      }}
                       className="font-data text-[9px] uppercase tracking-[0.12em] text-muted underline underline-offset-4 transition-colors hover:text-ink"
                     >
                       clear
@@ -729,7 +788,7 @@ export function UploadForm() {
             </div>
             <button
               type="submit"
-              disabled={!resumeFile || !jdText.trim() || busy}
+              disabled={!resumeFile || !jdReady || busy}
               className="inline-flex h-12 shrink-0 items-center justify-center gap-3 rounded-full bg-accent px-6 text-small font-semibold text-brand-ink transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               <SubmitLabel phase={phase} />
@@ -793,6 +852,14 @@ export function UploadForm() {
 
             {jd && <JdPanel jd={jd} />}
             {resume && report && <ParsePanel resume={resume} report={report} />}
+            {resume && (
+              <VersionHistoryPanel
+                resumeId={resume.id}
+                refreshKey={versionRefreshKey}
+              />
+            )}
+            <FactsPanel />
+            <PrivacyPanel />
           </div>
         </section>
       )}

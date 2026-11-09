@@ -2,14 +2,15 @@
 
 Audit date: **2026-11-09**
 Source of truth: [`ats-resume-optimizer-architecture.md`](ats-resume-optimizer-architecture.md)
-Current phase: **Phase 1 + Phase 2 LaTeX and AI/NLP tracks implemented (opt-in)**
+Current phase: **Phase 1 + Phase 2 (LaTeX, AI/NLP) + Phase 3 (optimiser, versions, export, UI) implemented**
 
 Verification at audit time:
 
-- `cd apps/api && uv run pytest -q` → **117 passed**
+- `cd apps/api && uv run pytest -q` → **126 passed**
 - `cd apps/api && uv run ruff check app tests` → **clean**
 - `cd apps/web && npm run lint` → **clean**
 - `cd apps/web && npx tsc --noEmit` → **clean**
+- `cd apps/web && npm test` → **4 passed** (word-diff unit tests)
 - `docker compose -f infra/docker-compose.yml config` → **valid**
 - `cd apps/api && uv run alembic upgrade head` → **clean on SQLite** (the pgvector DDL is
   PostgreSQL-only and no-ops elsewhere)
@@ -236,65 +237,86 @@ patched in place.
 
 ## 4. Phase 3 — Optimiser loop, versions, and export
 
-- [ ] **Compile → re-score → keep-or-rollback loop.** `run_optimisation` re-scores the
-      canonical document in memory, but never compiles, lints, or compares PDF parse
-      fidelity after each patch.
-- [ ] **Summary tailoring.** `summary_tailor` exists as a proposal kind but is never
-      generated. The summary is not rewritten for the JD.
-- [ ] **Bullet/section reordering by relevance.** Only skill-group/keyword reordering is
-      implemented.
-- [ ] **One-page condensing.** No token-aware condensing or page-count logic.
-- [ ] **Broader bullet rewriting.** Deterministic rewriting only replaces a fixed list of
-      weak prefixes; it does not perform task → action → result restructuring.
-- [ ] **Export endpoint.** Doc §7 lists
-      `GET /v1/versions/{id}/export?format=pdf|tex|docx`; it is absent.
-- [ ] **PDF export.** No compiled PDF output.
-- [ ] **DOCX export.** `python-docx` reads DOCX but does not write it.
-- [ ] **TEX export / patched source.** Original `.tex` bytes are stored, but no optimised
-      `.tex` file is produced or downloadable.
-- [ ] **Version detail and diff API.** `GET /v1/resumes/{id}/versions` returns metadata
-      only. There is no `GET /v1/versions/{id}` with canonical/source content, and no
-      before/after diff endpoint.
-- [ ] **Doc endpoint parity.** Doc §7 uses
-      `POST /v1/versions/{id}/changes/{change_id}/accept`; the implementation is
-      `POST /v1/jobs/{id}/changes/{change_id}`. Either add aliases or record the deviation
-      permanently.
-- [ ] **Change log before/after text.** Version change logs store status/target/rationale,
-      not the full before/after strings required for a reviewer-facing change log.
+- [x] **Compile → re-score → keep-or-rollback loop.** `run_optimisation` re-scores each
+      candidate and runs the sandboxed compile guard; a real compile failure rolls back
+      the whole iteration and records the reason. The loop also records baseline/candidate
+      parse-fidelity snapshots for the UI.
+- [x] **Summary tailoring.** Added deterministic summary ranking in `optimiser.py`:
+      sentences mentioning JD must-haves are kept first, the result is trimmed by tone,
+      and `verify_rewrite` confirms no new facts were introduced. Emitted as
+      `summary_tailor` and applied by `_apply`.
+- [~] **Bullet/section reordering by relevance.** Added `reorder_bullets` proposals that
+      sort highlights by JD evidence, metrics, action verbs, and length without changing
+      the bullet set. Section-level reordering (experience/projects) is not implemented.
+- [x] **One-page condensing.** Added page estimation (~450 words/page), a configurable
+      `max_pages`, and `condense_bullets` proposals that remove the lowest-relevance,
+      lowest-impact bullets within the target. Removals are `needs_user_input` and only
+      applied after explicit acceptance.
+- [x] **Broader bullet rewriting.** Expanded weak-prefix patterns and gerund→past-tense
+      mappings (`in charge of`, `tasked with`, `worked as`, `utilized`, `did`, etc.) while
+      retaining the verifier. Rewrites stay source-bound.
+- [x] **Export endpoint.** Added `GET /v1/versions/{id}/export?format=tex|pdf|docx|json`
+      with attachment filenames and ownership checks (`app/api/v1/versions.py`).
+- [~] **PDF export.** Streams the stored validation PDF when present, otherwise compiles
+      the canonical ATS-safe render through the sandboxed worker. Returns a clear 409
+      `pdf_export_unavailable` when compilation is disabled/unavailable. **Caveat:** it
+      depends on the Phase 2 worker; default offline mode exports TEX/DOCX/JSON.
+- [x] **DOCX export.** `app/services/export/docx.py` writes a single-column DOCX from the
+      canonical resume (no tables or text boxes), including work, education, skills,
+      projects, certifications, languages, and awards.
+- [x] **TEX export / patched source.** Canonical ATS-safe TEX is downloadable per
+      version, and `?format=tex&mode=source` applies accepted before/after edits to a
+      literal single-file `.tex` source. **Caveat:** source mode is exact-text patching,
+      not an AST edit; unmatched edits are reported in `X-Patch-Skipped`.
+- [x] **Version detail and diff API.** Added `GET /v1/versions/{id}` (canonical snapshot)
+      and `GET /v1/versions/{id}/diff?against=...` with field-level added/removed/changed
+      entries; defaults to the previous version.
+- [x] **Doc endpoint parity.** Added
+      `POST /v1/versions/{id}/changes/{change_id}` as an alias that finds the producing
+      job from the append-only change log and delegates to the canonical decision handler.
+- [x] **Change log before/after text.** Decision events now include explicit
+      `before_text`/`after_text` alongside target/rationale/status, so a reviewer-facing
+      change log can render the exact source and replacement.
 - [ ] **Facts Bank feeding the optimiser in UI flow.** The API reads facts for LLM
       planning, but the web flow offers no way to add/confirm facts, so missing-skill
       questions cannot be answered in-product.
-- [ ] **Template support for AST patching.** Doc Phase 3 targets 2–3 popular templates; none
-      are supported because there is no AST/compiler.
+- [~] **Template support for AST patching.** Added `app/services/latex/patch.py` and
+      `export?format=tex&mode=source`, which applies accepted before/after edits when the
+      exact text occurs in a single-file `.tex` source (works for literal templates such
+      as Jake’s Resume). This is not an AST editor; unmatched edits are reported via
+      `X-Patch-Skipped`, and zip projects must use canonical TEX export.
 
 ---
 
 ## 5. Frontend (`apps/web`)
 
-- [ ] **JD URL input.** Backend `/v1/jds` supports `url` with an SSRF guard; the UI only
-      accepts pasted text and labels the mode “paste text”
-      (`apps/web/src/components/upload-form.tsx`). Doc §3 calls for paste/URL.
-- [ ] **Facts Bank UI.** No page/panel to list, add, confirm, or delete facts.
-- [ ] **Version history UI.** No view of resume versions, score history, or change logs.
-- [ ] **Export/download UI.** No PDF/TEX/DOCX download button.
+- [x] **JD URL input.** The upload flow now toggles between pasted text and a public
+      URL, calls `POST /v1/jds` with `url`, and surfaces the SSRF/fetch error hint.
+- [x] **Facts Bank UI.** Added `apps/web/src/components/facts-panel.tsx`: list, add, and
+      delete confirmed facts; explains that facts feed future optimiser runs and never
+      insert themselves.
+- [x] **Version history UI.** Added `apps/web/src/components/version-history-panel.tsx`
+      with immutable version list, decision events, before/after text, and refresh.
+- [x] **Export/download UI.** Per-version TEX, DOCX, PDF, JSON, and patched-TEX download
+      links, plus an inline PDF preview frame.
 - [x] **Proposal editor.** Inline editor for bullet rewrites and
       `[ADD METRIC: …]` placeholders, with save-and-verify, live placeholder
       validation, and an "edited by you" provenance badge
       (`apps/web/src/components/proposal-card.tsx`).
 - [ ] **Monaco LaTeX editor.** Not installed/used (doc §5 recommends
       `@monaco-editor/react`).
-- [ ] **Live PDF preview.** No `react-pdf` / PDF.js preview.
-- [ ] **Diff viewer.** Proposal cards show two text panes, but there is no proper
-      word-level diff (`react-diff-viewer` or equivalent).
-- [ ] **Upload flow for `.zip` content.** UI accepts `.zip`, but multi-file LaTeX
-      projects are not resolvable; preview/editor would be needed for real projects.
-- [~] **PII / privacy controls.** Backend now has delete-all (`DELETE /v1/account`)
-      and retention purge (`POST /v1/account/purge`); the web UI does not expose those
-      controls yet, and there is still no redaction/Presidio pass.
-- [ ] **Frontend tests.** No unit tests, component tests, Playwright/Cypress E2E, or
-      accessibility test suite.
-- [ ] **Error coverage.** Some error hints are unreachable (for example
-      `jd_url_blocked`) because the corresponding UI affordance does not exist.
+- [x] **Live PDF preview.** Version history embeds the export URL in an iframe. It
+      requires the sandboxed compiler; TEX/DOCX remain available offline.
+- [x] **Diff viewer.** Added a word-level LCS diff for proposals
+      (`apps/web/src/lib/diff.ts`, `word-diff.tsx`) and a field-level version diff panel.
+- [ ] **Upload flow for `.zip` content.** The engine resolves zip projects, but the UI
+      still shows only the canonical parsed result; there is no multi-file source editor.
+- [x] **PII / privacy controls.** Added `privacy-panel.tsx` for delete-all and retention
+      purge, and the backend has scored-context fairness redaction with audit counts.
+- [~] **Frontend tests.** Added a Node test suite for the word-diff utility
+      (`apps/web/tests/diff.test.ts`). Component/E2E/accessibility suites are still absent.
+- [~] **Error coverage.** JD URL errors are now reachable; some server error hints still
+      have no corresponding UI affordance.
 
 ---
 
@@ -387,16 +409,17 @@ the operational cost.
 
 | Doc expectation | Current implementation | Action |
 |---|---|---|
-| Celery/Redis or Temporal queue | `BackgroundTasks`; Redis used only for optional JD cache | Add a durable queue in Phase 3 |
+| Celery/Redis or Temporal queue | `BackgroundTasks`; Redis used only for optional JD cache | Add a durable queue next |
 | pgvector in Postgres | JSON vectors everywhere + native pgvector columns/search (live-verified) | Add a CI Postgres matrix |
 | Multi-extractor parse fidelity | pypdf + optional PyMuPDF/`pdftotext` with token agreement | Tika remains optional |
 | Sandboxed LaTeX compile | Worker + Docker/local fallback, opt-in; compile rollback | Tune limits with real workloads |
 | LLM structuring + `instructor` | Heuristic default + optional schema-validated LLM structuring | Add provider evals |
 | LLM judge in score | Optional bounded LLM judge with clamped adjustment | Decide production blend |
 | Trained embeddings + reranker | Optional sentence-transformers/CrossEncoder behind fallbacks | Benchmark on a labelled set |
-| Monaco + PDF preview + diff viewer | Plain React panels | Close in Phase 3 |
-| `/v1/versions/{id}/export` | Not present | Close in Phase 3 |
-| `/v1/versions/{id}/changes/.../accept` | `/v1/jobs/{id}/changes/...` | Alias or document |
+| Monaco + PDF preview + diff viewer | Word/field diff and PDF iframe shipped; Monaco and zip editor pending | Add Monaco/zip editing |
+| `/v1/versions/{id}/export` | TEX/DOCX/JSON always; PDF with worker; source-mode TEX patch | Add PDF fallback if desired |
+| `/v1/versions/{id}/changes/.../accept` | Alias shipped; canonical route remains `/v1/jobs/...` | Keep both |
+| AST template patching | Literal single-file TEX replacement with skipped-edit reporting | Add true AST support |
 | Per-user auth (Clerk/Auth0) | Per-user API keys via `ATS_API_KEYS`; no SSO/plans | Close before multi-user |
 | S3/MinIO storage | Local filesystem only | Close before hosted deployment |
 | Presidio PII redaction | Fairness scoring view; no Presidio pass before external LLM calls | Close before external LLM use |
@@ -408,9 +431,10 @@ the operational cost.
 1. ~~**Editable proposal + metric workflow.**~~ Done in the P0 pass: `PATCH
    /v1/jobs/{id}/changes/{change_id}`, verifier re-run, Facts Bank recording, and the
    inline web editor. Next: expose the Facts Bank and version/export UI.
-2. **Facts Bank + version/export UI.** Expose the existing facts, versions, search, and
-   multi-JD preview APIs; show a change log; add at least TEX/JSON export.
-3. **JD URL input.** Reuse the existing SSRF-guarded `/v1/jds` URL path in the UI.
+2. ~~**Facts Bank + version/export UI.**~~ Done: facts panel, version history, field
+   diff, word diff, TEX/DOCX/PDF/JSON downloads, patched-TEX export, and PDF preview.
+   Next: Monaco/zip source editing and a component/E2E test suite.
+3. ~~**JD URL input.**~~ Done: the intake UI toggles between pasted text and a public URL.
 4. ~~**LaTeX worker spike.**~~ Done: sandboxed worker, one-shot/HTTP transports,
    multi-extractor PDF comparison, and compile rollback. Next: run Jake’s/AltCV/moderncv
    template fixtures in CI.

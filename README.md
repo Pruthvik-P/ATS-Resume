@@ -153,10 +153,20 @@ calibration, fairness redaction, and multi-JD tailoring previews. The determinis
 hashed embeddings and heuristic structurer remain the default, so the offline test
 suite is reproducible.
 
-## Verify the backend
+Phase 3 adds the version/export loop: immutable version detail and field diffs,
+TEX/DOCX/JSON downloads, compiled PDF export/preview when the LaTeX worker is enabled,
+literal single-file TEX patching, summary/bullet/condense optimiser proposals, a Facts
+Bank panel, word-level proposal diffs, and delete-all/retention privacy controls.
+
+## Verify the project
 
 ```bash
 cd apps/api
 uv run pytest -q
 uv run ruff check app tests
+
+cd ../web
+npm run lint
+npx tsc --noEmit
+npm test
 ```

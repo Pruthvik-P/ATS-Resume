@@ -10,17 +10,19 @@ from app.core.logging import get_logger
 from app.schemas.jd import JDAnalysis
 from app.schemas.jobs import (
     ChangeProposal,
+    IterationRecord,
     OptimiseOptions,
     OptimiseResult,
     VerifierSummary,
 )
-from app.schemas.resume import Resume, ResumeDocument, SkillGroup
+from app.schemas.resume import Resume, ResumeDocument, SkillGroup, resume_word_count
 from app.schemas.score import ScoreReport
 from app.services.latex.compiler import compile_source
 from app.services.latex.render import render_resume_tex
 from app.services.llm.base import get_llm_provider
 from app.services.llm.prompts import PROMPT_VERSION, REWRITER_SYSTEM_PROMPT
 from app.services.scoring.engine import build_score_report
+from app.services.text import ACTION_VERBS, split_sentences
 from app.services.verifier import verify_rewrite, verify_skill_reorder
 from app.services.versioning import optimiser_model_versions
 from app.taxonomy.skills import canonical_for, find_skills
@@ -29,7 +31,9 @@ logger = get_logger(__name__)
 
 _WEAK_PREFIX_RE = re.compile(
     r"^(?:responsible for|duties included|worked on|helped with|helped to|"
-    r"assisted with|involved in|participated in|tasked with)\s+",
+    r"assisted with|involved in|participated in|tasked with|in charge of|"
+    r"worked as|was responsible for|were responsible for|handled|utilized|"
+    r"utilised|did|made)\s+",
     re.IGNORECASE,
 )
 
@@ -61,6 +65,18 @@ _GERUND_TO_PAST = {
     "scaling": "scaled",
     "shipping": "shipped",
     "launching": "launched",
+    "owning": "owned",
+    "driving": "drove",
+    "streamlining": "streamlined",
+    "modernizing": "modernized",
+    "modernising": "modernised",
+    "integrating": "integrated",
+    "documenting": "documented",
+    "architecting": "architected",
+    "instrumenting": "instrumented",
+    "debugging": "debugged",
+    "resolving": "resolved",
+    "evaluating": "evaluated",
 }
 
 _PARSE_FIXES: dict[str, str] = {
@@ -178,6 +194,112 @@ def _rewrite_bullet(text: str) -> tuple[str, str] | None:
     return match.group(0).strip(), rewritten
 
 
+_METRIC_RE = re.compile(
+    r"(?:\b\d[\d,.]*\s*(?:%|percent|x|k|m|bn|million|billion|users|customers|requests|"
+    r"ms|seconds|minutes|hours|days|weeks|months|people|engineers|services|teams)\b)"
+    r"|(?:\$\s?\d)|(?:\b\d[\d,.]*\b)",
+    re.IGNORECASE,
+)
+
+
+def _bullet_relevance(text: str, analysis: JDAnalysis) -> int:
+    ranks = _rank_recipe(analysis)
+    keyword_score = sum(
+        ranks.get(match.canonical, 0) for match in find_skills(text)
+    )
+    metric = 1 if _METRIC_RE.search(text) else 0
+    first_word = re.match(r"\s*([A-Za-z]+)", text)
+    action = 1 if first_word and first_word.group(1).lower() in ACTION_VERBS else 0
+    length = 1 if 40 <= len(text) <= 220 else 0
+    return keyword_score * 4 + metric * 2 + action + length
+
+
+def _tailor_summary(
+    resume: Resume, analysis: JDAnalysis, options: OptimiseOptions
+) -> str | None:
+    summary = resume.basics.summary
+    if not summary:
+        return None
+    sentences = split_sentences(summary)
+    limit = {"concise": 2, "balanced": 3, "detailed": 4}[options.tone]
+    if len(sentences) <= limit:
+        return None
+    scored = [
+        (_bullet_relevance(sentence, analysis), index, sentence)
+        for index, sentence in enumerate(sentences)
+    ]
+    if not any(score for score, _, _ in scored):
+        return None
+    selected = sorted(
+        sorted(scored, key=lambda item: (-item[0], item[1]))[:limit],
+        key=lambda item: item[1],
+    )
+    proposed = " ".join(sentence for _, _, sentence in selected).strip()
+    return proposed if proposed != summary else None
+
+
+def _reorder_bullet_list(
+    highlights: list[str], analysis: JDAnalysis
+) -> list[str]:
+    if len(highlights) < 2:
+        return highlights
+    scored = [
+        (_bullet_relevance(text, analysis), index, text)
+        for index, text in enumerate(highlights)
+    ]
+    if len({score for score, _, _ in scored}) <= 1:
+        return highlights
+    return [
+        text
+        for _, _, text in sorted(scored, key=lambda item: (-item[0], item[1]))
+    ]
+
+
+def _verify_reorder(original: list[str], proposed: list[str]) -> tuple[bool, list[str]]:
+    if sorted(original) == sorted(proposed):
+        return True, []
+    return False, ["Reorder changed the bullet set instead of only its order."]
+
+
+def _condense_candidates(
+    resume: Resume, analysis: JDAnalysis, max_pages: float
+) -> list[tuple[str, str, str]]:
+    words = resume_word_count(resume)
+    pages = words / 450
+    if pages <= max_pages + 0.05:
+        return []
+    must_have = {item.canonical for item in analysis.must_have}
+    candidates: list[tuple[int, str, str, int]] = []
+    for ref, text in _iter_bullet_refs(resume):
+        matches = {match.canonical for match in find_skills(text)}
+        if matches & must_have:
+            continue
+        score = _bullet_relevance(text, analysis)
+        candidates.append((score, ref, text, len(text.split())))
+    candidates.sort(key=lambda item: (item[0], -item[3]))
+    excess = max(0, words - int(max_pages * 450))
+    selected: list[tuple[str, str, str]] = []
+    for _score, ref, text, size in candidates[:5]:
+        if excess <= 0 or len(selected) >= 3:
+            break
+        selected.append(
+            (
+                ref,
+                text,
+                (
+                    f"Removing this {size}-word bullet trims the resume toward "
+                    f"{max_pages:g} page(s); review it before accepting."
+                ),
+            )
+        )
+        excess -= size
+    return selected
+
+
+def _estimated_pages(resume: Resume) -> float:
+    return round(resume_word_count(resume) / 450, 2)
+
+
 def _iter_bullet_refs(resume: Resume) -> list[tuple[str, str]]:
     refs: list[tuple[str, str]] = []
     for work_index, work in enumerate(resume.work):
@@ -229,6 +351,76 @@ def _plan_deterministic(
             else:
                 verifier.rejected += 1
                 verifier.reasons.extend(verification.reasons)
+
+    if options.tailor_summary and resume.basics.summary:
+        proposed_summary = _tailor_summary(resume, analysis, options)
+        if proposed_summary:
+            verification = verify_rewrite(
+                resume.basics.summary, proposed_summary, []
+            )
+            verifier.checked += 1
+            if verification.verified:
+                proposals.append(
+                    _proposal(
+                        kind="summary_tailor",
+                        section="summary",
+                        target_ref="basics.summary",
+                        original=resume.basics.summary,
+                        proposed=proposed_summary,
+                        rationale=(
+                            "Keep the summary sentences that mention the JD's strongest "
+                            "requirements; no new claims were added."
+                        ),
+                        keywords=[item.canonical for item in analysis.must_have][:8],
+                    )
+                )
+            else:
+                verifier.rejected += 1
+                verifier.reasons.extend(verification.reasons)
+
+    if options.reorder_bullets:
+        for work_index, work in enumerate(resume.work):
+            reordered = _reorder_bullet_list(work.highlights, analysis)
+            if reordered == work.highlights:
+                continue
+            original_text = "\n".join(work.highlights)
+            proposed_text = "\n".join(reordered)
+            verified, reasons = _verify_reorder(work.highlights, reordered)
+            verifier.checked += 1
+            if verified:
+                proposals.append(
+                    _proposal(
+                        kind="reorder_bullets",
+                        section="experience",
+                        target_ref=f"work[{work_index}].highlights",
+                        original=original_text,
+                        proposed=proposed_text,
+                        rationale=(
+                            "Place the bullets with the strongest JD evidence and measurable "
+                            "results first. No bullet is added or removed."
+                        ),
+                        keywords=[item.canonical for item in analysis.must_have][:8],
+                    )
+                )
+            else:
+                verifier.rejected += 1
+                verifier.reasons.extend(reasons)
+
+    for ref, text, rationale in _condense_candidates(
+        resume, analysis, options.max_pages
+    ):
+        proposals.append(
+            _proposal(
+                kind="condense_bullets",
+                section="experience",
+                target_ref=ref,
+                original=text,
+                proposed="",
+                rationale=rationale,
+                truthfulness="needs_user_input",
+                risk="medium",
+            )
+        )
 
     if options.suggest_metrics:
         weak = report.breakdown.impact.model_extra or {}
@@ -416,6 +608,32 @@ def _set_bullet(resume: Resume, ref: str | None, text: str) -> bool:
     return True
 
 
+def _apply_bullet_reorder(
+    current: list[str],
+    original_lines: list[str],
+    proposed_lines: list[str],
+    removed_indices: set[int],
+) -> list[str]:
+    remaining = [
+        index for index in range(len(original_lines)) if index not in removed_indices
+    ]
+    if len(current) != len(remaining):
+        return current
+    by_original_index = dict(zip(remaining, current, strict=False))
+    order: list[int] = []
+    used: set[int] = set()
+    for line in proposed_lines:
+        for index, original in enumerate(original_lines):
+            if index in used or index in removed_indices or original != line:
+                continue
+            used.add(index)
+            order.append(index)
+            break
+    if len(order) != len(current):
+        return current
+    return [by_original_index[index] for index in order]
+
+
 def _apply(
     document: ResumeDocument,
     proposals: list[ChangeProposal],
@@ -442,9 +660,58 @@ def _apply(
                 for highlight in project.highlights
             ]
 
+    if any(proposal.kind == "summary_tailor" for proposal in proposals):
+        summary = next(
+            proposal.proposed
+            for proposal in proposals
+            if proposal.kind == "summary_tailor"
+        )
+        resume.basics.summary = summary
+
     if any(proposal.kind == "reorder_skills" for proposal in proposals):
         _, reordered = _reorder_skills(resume, analysis)
         resume.skills = reordered
+
+    removals: dict[str, dict[int, set[int]]] = {"work": {}, "projects": {}}
+    for proposal in proposals:
+        if proposal.kind != "condense_bullets" or proposal.proposed.strip():
+            continue
+        match = _BULLET_REF_RE.match(proposal.target_ref or "")
+        if not match:
+            continue
+        section, item_index, highlight_index = (
+            match.group(1),
+            int(match.group(2)),
+            int(match.group(3)),
+        )
+        removals[section].setdefault(item_index, set()).add(highlight_index)
+    for section, items in removals.items():
+        collection = resume.work if section == "work" else resume.projects
+        for index, indexes in items.items():
+            if index >= len(collection):
+                continue
+            collection[index].highlights = [
+                text
+                for highlight_index, text in enumerate(collection[index].highlights)
+                if highlight_index not in indexes
+            ]
+
+    for proposal in proposals:
+        if proposal.kind != "reorder_bullets" or not proposal.target_ref:
+            continue
+        match = re.match(r"^(work|projects)\[(\d+)\]\.highlights$", proposal.target_ref)
+        if not match:
+            continue
+        collection = resume.work if match.group(1) == "work" else resume.projects
+        index = int(match.group(2))
+        if index >= len(collection):
+            continue
+        collection[index].highlights = _apply_bullet_reorder(
+            collection[index].highlights,
+            [line for line in proposal.original.split("\n") if line.strip()],
+            [line for line in proposal.proposed.split("\n") if line.strip()],
+            removals[match.group(1)].get(index, set()),
+        )
 
     fix_codes = {
         proposal.target_ref for proposal in proposals if proposal.kind == "parse_fix"
@@ -462,21 +729,21 @@ def apply_proposals(
     return _apply(document, accepted, analysis)
 
 
-def _compile_guard(document: ResumeDocument) -> tuple[bool, str | None]:
-    """Compile the candidate resume when the sandboxed pipeline is enabled.
-
-    A candidate that cannot be compiled is rolled back before it can be
-    accepted. Availability problems (no worker configured) are not treated as
-    candidate failures; only a real compile error blocks the change.
-    """
-
+def _compile_candidate(document: ResumeDocument) -> tuple[bool, str | None, str]:
     if not settings.latex_compile_enabled:
-        return True, None
+        return True, None, "disabled"
     result = compile_source(render_resume_tex(document), filename="resume.tex")
     if result.status in {"failed", "timeout", "rejected"}:
         detail = (result.reason or result.log or "compile failed").strip()
-        return False, detail[:600]
-    return True, None
+        return False, detail[:600], result.status
+    return True, None, result.status
+
+
+def _compile_guard(document: ResumeDocument) -> tuple[bool, str | None]:
+    """Compile the candidate and keep the legacy two-value guard contract."""
+
+    ok, reason, _status = _compile_candidate(document)
+    return ok, reason
 
 
 async def run_optimisation(
@@ -498,6 +765,7 @@ async def run_optimisation(
     iterations = 0
     stopped: str = "max_iterations"
     compile_failure: str | None = None
+    history: list[IterationRecord] = []
 
     for iteration in range(1, options.max_iterations + 1):
         iterations = iteration
@@ -546,9 +814,23 @@ async def run_optimisation(
             analysis=analysis,
         )
 
-        compiled, compile_reason = await asyncio.to_thread(
-            _compile_guard, candidate_document
+        compiled, compile_reason, compile_status = await asyncio.to_thread(
+            _compile_candidate, candidate_document
         )
+        record = IterationRecord(
+            iteration=iteration,
+            baseline_score=round(current_report.overall_score, 1),
+            candidate_score=round(candidate_report.overall_score, 1),
+            score_delta=round(
+                candidate_report.overall_score - current_report.overall_score, 1
+            ),
+            compile_status=compile_status,
+            parse_fidelity_before=dict(current_report.parse_fidelity),
+            parse_fidelity_after=dict(candidate_report.parse_fidelity),
+            rolled_back=not compiled,
+            reason=compile_reason,
+        )
+        history.append(record)
         if not compiled:
             # Roll back the whole iteration: none of its proposals may survive.
             del proposals[iteration_start:]
@@ -582,6 +864,13 @@ async def run_optimisation(
         )
     if not any(proposal.truthfulness == "verified" for proposal in proposals):
         notes.append("No verified changes were available for this resume/JD pair.")
+    pages_before = _estimated_pages(document.canonical)
+    pages_after = _estimated_pages(current_document.canonical)
+    if pages_after > options.max_pages:
+        notes.append(
+            f"Estimated length is {pages_after:g} page(s), above the {options.max_pages:g}-page "
+            "target. Review the condense suggestions."
+        )
 
     provider = get_llm_provider()
     return OptimiseResult(
@@ -591,11 +880,14 @@ async def run_optimisation(
         baseline_score=baseline.overall_score,
         target_score=target,
         score_after_accepted=current_report.overall_score,
+        estimated_pages_before=pages_before,
+        estimated_pages_after=pages_after,
         iterations=iterations,
         stopped_reason=stopped,  # type: ignore[arg-type]
         proposals=proposals,
         verifier=verifier,
         notes=notes,
+        iteration_history=history,
         model_versions=optimiser_model_versions(
             provider_name=provider.name,
             prompt_version=PROMPT_VERSION,

@@ -180,6 +180,13 @@ export function OptimiserPanel({
             needs input{" "}
             <span className="text-signal">{result.verifier.needs_user_input}</span>
           </span>
+          <span>
+            pages{" "}
+            <span className="text-ink">
+              {formatNumber(result.estimated_pages_before ?? 0)} →{" "}
+              {formatNumber(result.estimated_pages_after ?? 0)}
+            </span>
+          </span>
           {result.verifier.reasons.length > 0 && (
             <span className="max-w-full normal-case tracking-normal text-muted">
               {result.verifier.reasons.slice(0, 2).join(" · ")}
@@ -198,6 +205,44 @@ export function OptimiserPanel({
               </p>
             ))}
           </div>
+        )}
+
+        {(result.iteration_history?.length ?? 0) > 0 && (
+          <details className="border-t border-line">
+            <summary className="cursor-pointer px-5 py-2.5 font-data text-[9px] uppercase tracking-[0.12em] text-muted">
+              iteration history · compile + re-score
+            </summary>
+            <div className="divide-y divide-line border-t border-line">
+              {result.iteration_history.map((record) => (
+                <div
+                  key={record.iteration}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2 font-data text-[9px] uppercase tracking-[0.1em] text-muted"
+                >
+                  <span>#{record.iteration}</span>
+                  <span>
+                    {formatNumber(record.baseline_score)} →{" "}
+                    {formatNumber(record.candidate_score)}
+                  </span>
+                  <span
+                    className={
+                      record.score_delta > 0
+                        ? "text-ok"
+                        : record.score_delta < 0
+                          ? "text-redline"
+                          : undefined
+                    }
+                  >
+                    {record.score_delta > 0 ? "+" : ""}
+                    {formatNumber(record.score_delta)}
+                  </span>
+                  <span>compile: {record.compile_status}</span>
+                  {record.rolled_back && (
+                    <span className="text-redline">rolled back</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
         )}
       </div>
 

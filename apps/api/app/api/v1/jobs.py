@@ -265,6 +265,8 @@ def _decision_event(
         "target": proposal.target_ref,
         "original": proposal.original,
         "proposed": proposal.proposed,
+        "before_text": proposal.original,
+        "after_text": proposal.proposed,
         "rationale": proposal.rationale,
         "edited_by_user": proposal.edited_by_user,
         "truthfulness": proposal.truthfulness,
@@ -641,7 +643,11 @@ async def decide_change(
             idempotent_replay=True,
         )
 
-    if payload.status == "accepted" and proposal.truthfulness != "verified":
+    if (
+        payload.status == "accepted"
+        and proposal.truthfulness != "verified"
+        and proposal.kind != "condense_bullets"
+    ):
         raise AppError(
             "change_needs_input",
             "This change is not verified yet. Edit it or reject it.",

@@ -23,7 +23,10 @@ The product and system design live in
 | Fairness redaction before scoring | Implemented with audit counts |
 | One master resume → multi-JD preview | Implemented (`POST /resumes/{id}/tailor`) |
 | Truthfulness-constrained optimisation proposals + accept/reject | Implemented |
+| Summary tailoring, bullet reordering, one-page condensing | Implemented in the optimiser |
 | Accepted changes → derived resume version + score report | Implemented; validation PDF when the sandboxed compiler is enabled |
+| Version detail, field diff, and export (TEX/PDF/DOCX/JSON) | Implemented (`/versions/{id}`, `/diff`, `/export`) |
+| Literal source patching (`export?format=tex&mode=source`) | Implemented for single-file `.tex`; no AST |
 | Facts Bank | Implemented |
 | PostgreSQL + Alembic schema | Implemented |
 | Sandboxed LaTeX compile + PDF parse-fidelity comparison | Implemented, opt-in (`ATS_LATEX_COMPILE_ENABLED`); worker image required |
@@ -55,7 +58,7 @@ required unless `ATS_API_KEY` is set.
 ### Tests and checks
 
 ```bash
-uv run pytest -q          # 117 tests
+uv run pytest -q          # 126 tests
 uv run ruff check app tests
 ```
 
@@ -81,6 +84,10 @@ All routes are under `/v1`.
 | POST | `/optimise` | `{resume_id, jd_id, target_score?, options}` → async job |
 | POST | `/resumes/{id}/tailor` | Preview one resume against multiple JDs |
 | POST | `/search/similar-bullets` | Cosine search over stored bullet embeddings |
+| GET | `/versions/{id}` | Version metadata + canonical document |
+| GET | `/versions/{id}/diff` | Field-level diff against another/previous version |
+| GET | `/versions/{id}/export` | Download `tex`/`pdf`/`docx`/`json`; `mode=source` patches literal TEX |
+| POST | `/versions/{id}/changes/{change_id}` | Doc-parity alias for accept/reject |
 | GET | `/jobs/{id}` | Job status + proposals |
 | GET | `/jobs/{id}/events` | SSE progress stream |
 | POST | `/jobs/{id}/changes/{change_id}` | Accept/reject one proposal |
@@ -166,13 +173,15 @@ apps/api/
 │   ├── schemas/         # Pydantic v2 contracts
 │   ├── services/
 │   │   ├── ingest/      # pdf, docx, latex, heuristic + LLM structurer
-│   │   ├── latex/       # project resolution, sandbox compile client, renderer
+│   │   ├── latex/       # project resolution, sandbox compile client, renderer, source patcher
+│   │   ├── export/      # DOCX renderer
 │   │   ├── scoring/     # 7 components + engine + embeddings + BM25 + rerank + judge
 │   │   ├── llm/         # retrying provider interface + versioned prompts
 │   │   ├── jd_analyser.py
 │   │   ├── jd_cache.py  # memory/Redis JD cache
 │   │   ├── optimiser.py
 │   │   ├── tailoring.py # multi-JD preview
+│   │   ├── versions.py  # version loading + canonical diff
 │   │   ├── versioning.py
 │   │   ├── verifier.py
 │   │   └── fetch.py     # SSRF-guarded JD URL fetch
@@ -245,6 +254,14 @@ canonical ATS-safe render and roll back on a real compile failure. If no worker 
 engine is available, ingestion records `compile_status: unavailable` and continues
 with static analysis instead of rejecting the upload.
 
+### Versions and exports
+
+Every accepted/rejected decision writes an immutable canonical-JSON snapshot. `GET
+/v1/versions/{id}` returns that snapshot, `/diff` compares it field-by-field with a
+previous version, and `/export` streams TEX, DOCX, JSON, or (when the sandbox compiler
+is enabled) PDF. `format=tex&mode=source` applies accepted before/after edits to a
+literal single-file `.tex` source; unmatched edits are counted in `X-Patch-Skipped`.
+
 ## Docker
 
 ```bash
@@ -264,9 +281,10 @@ commands.
 - **Jobs run in-process** via FastAPI `BackgroundTasks`. The `jobs` table,
   statuses, progress, and SSE stream are the same shape a Celery/Temporal
   worker will use, so swapping the executor does not change the API.
-- **Optimiser returns proposals, not patched files.** The optimiser edits canonical
-  JSON and validates the canonical ATS-safe render through the sandboxed compiler.
-  It does not patch the user's original template in place. `score_after_accepted` is a
+- **Optimiser returns proposals, not patched files by default.** The optimiser edits
+  canonical JSON and validates the canonical ATS-safe render through the sandboxed
+  compiler. Accepted changes can be exported as canonical TEX/DOCX/PDF/JSON, and literal
+  single-file TEX sources can be patched with `mode=source`. `score_after_accepted` is a
   real re-score of the accepted proposal set.
 - **PDF extraction uses `pypdf` plus optional PyMuPDF and `pdftotext`.** The API Docker
   image installs the `pdf` extra and `poppler-utils`, so all three run in production.
@@ -277,6 +295,10 @@ commands.
 - **The LaTeX worker is a separate image.** The API image stays small; the worker
   carries TeX Live, runs read-only with limits, and is attached to an internal-only
   network in Compose.
+- **PDF export depends on the sandboxed compiler.** Without it, `/export?format=pdf`
+  returns a clear `pdf_export_unavailable` 409; TEX/DOCX/JSON always work.
+- **Source patching is literal text replacement, not AST editing.** It works for common
+  literal templates but cannot reflow arbitrary macros or zip projects.
 - **Semantic scoring uses a deterministic hashed n-gram embedder by default.** Trained
   bge/e5/gte embeddings and a cross-encoder reranker are opt-in; thresholds and the
   active model are recorded in score details and the version manifest.

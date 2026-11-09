@@ -192,6 +192,8 @@ export interface ScoreReport {
 export type ChangeKind =
   | "rewrite_bullet"
   | "reorder_skills"
+  | "reorder_bullets"
+  | "condense_bullets"
   | "placeholder_metric"
   | "missing_skill_question"
   | "parse_fix"
@@ -224,6 +226,18 @@ export interface VerifierSummary {
   reasons: string[];
 }
 
+export interface IterationRecord {
+  iteration: number;
+  baseline_score: number;
+  candidate_score: number;
+  score_delta: number;
+  compile_status: string;
+  parse_fidelity_before: Record<string, unknown>;
+  parse_fidelity_after: Record<string, unknown>;
+  rolled_back: boolean;
+  reason?: string | null;
+}
+
 export interface OptimiseResult {
   job_id: string;
   resume_id: string;
@@ -231,6 +245,8 @@ export interface OptimiseResult {
   baseline_score: number;
   target_score: number;
   score_after_accepted: number;
+  estimated_pages_before: number;
+  estimated_pages_after: number;
   iterations: number;
   stopped_reason:
     | "target_reached"
@@ -240,6 +256,7 @@ export interface OptimiseResult {
   proposals: ChangeProposal[];
   verifier: VerifierSummary;
   notes: string[];
+  iteration_history: IterationRecord[];
   model_versions: Record<string, string>;
   created_at: string;
 }
@@ -279,4 +296,66 @@ export interface ChangeDecisionResponse {
   pdf_url?: string | null;
   previous_status?: ChangeStatus | null;
   idempotent_replay?: boolean;
+}
+
+export interface ResumeVersionRead {
+  id: string;
+  resume_id: string;
+  version: number;
+  parent_version_id?: string | null;
+  tex_url?: string | null;
+  pdf_url?: string | null;
+  snapshot_url?: string | null;
+  change_log: Array<Record<string, unknown>>;
+  score_id?: string | null;
+  created_at: string;
+}
+
+export interface ResumeVersionDetail extends ResumeVersionRead {
+  document: ResumeDocument;
+}
+
+export interface FieldDiff {
+  path: string;
+  change: "added" | "removed" | "changed";
+  before?: string | null;
+  after?: string | null;
+}
+
+export interface VersionDiffResponse {
+  version_id: string;
+  against_version_id?: string | null;
+  changed_fields: number;
+  fields: FieldDiff[];
+  note: string;
+}
+
+export interface Fact {
+  id: string;
+  fact_text: string;
+  source: string;
+  tags: string[];
+  confirmed_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface FactsList {
+  items: Fact[];
+  total: number;
+}
+
+export interface DeleteAllResponse {
+  deleted: PurgeResponse;
+  audit_retained: boolean;
+}
+
+export interface PurgeResponse {
+  resumes_deleted: number;
+  versions_deleted: number;
+  scores_deleted: number;
+  jds_deleted: number;
+  facts_deleted: number;
+  jobs_deleted: number;
+  audit_rows_deleted: number;
+  storage_objects_deleted: number;
 }
