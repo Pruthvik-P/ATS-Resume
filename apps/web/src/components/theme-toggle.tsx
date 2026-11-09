@@ -39,7 +39,7 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       title="Toggle colour theme"
       aria-label="Toggle colour theme"
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-line text-muted transition-colors hover:border-ink/30 hover:text-ink"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-ink/30 hover:text-ink"
     >
       <svg
         aria-hidden="true"

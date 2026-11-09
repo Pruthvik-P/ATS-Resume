@@ -28,7 +28,7 @@ export function HeroScan() {
         </div>
 
         {/* The sheet */}
-        <div className="relative overflow-hidden bg-[#0C120D] p-2.5 sm:p-3.5">
+        <div className="relative overflow-hidden bg-night p-2.5 sm:p-3.5">
           <div className="relative overflow-hidden bg-sheet px-4 py-5 text-sheet-ink sm:px-6 sm:py-6">
             <div
               aria-hidden="true"

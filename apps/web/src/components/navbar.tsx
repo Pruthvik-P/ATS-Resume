@@ -43,7 +43,7 @@ export function Navbar() {
           onClick={() => setOpen(false)}
         >
           <ScanMark />
-          <span className="font-display text-[1.02rem] font-bold tracking-[-0.03em]">
+          <span className="font-display text-[1.35rem] font-normal leading-none tracking-[-0.01em]">
             ats<span className="text-accent">.</span>resume
           </span>
         </Link>
@@ -73,7 +73,7 @@ export function Navbar() {
           </div>
           <Link
             href="/start"
-            className="group inline-flex h-9 items-center gap-2 border border-ink bg-ink px-3 text-caption font-semibold text-paper transition-colors hover:bg-ink-2 sm:px-4"
+            className="group inline-flex h-9 items-center gap-2 rounded-full bg-accent px-3 text-caption font-semibold text-brand-ink transition-colors hover:bg-accent-strong sm:px-4"
           >
             Run a scan
             <span
