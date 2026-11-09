@@ -20,6 +20,7 @@ const ALLOWED_ROOTS = new Set([
   "optimise",
   "jobs",
   "facts",
+  "account",
 ]);
 
 const HOP_BY_HOP_HEADERS = new Set([

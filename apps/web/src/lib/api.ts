@@ -1,5 +1,6 @@
 import type {
   ChangeDecisionResponse,
+  ChangeProposal,
   JDAnalysisResponse,
   JobRead,
   ResumeRead,
@@ -129,17 +130,33 @@ export function getJob(jobId: string): Promise<JobRead> {
   return request<JobRead>(`/jobs/${encodeURIComponent(jobId)}`);
 }
 
+export function editChange(
+  jobId: string,
+  changeId: string,
+  proposed: string,
+): Promise<ChangeProposal> {
+  return request<ChangeProposal>(
+    `/jobs/${encodeURIComponent(jobId)}/changes/${encodeURIComponent(changeId)}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ proposed }),
+    },
+  );
+}
+
 export function decideChange(
   jobId: string,
   changeId: string,
   status: "accepted" | "rejected",
+  proposed?: string,
 ): Promise<ChangeDecisionResponse> {
   return request<ChangeDecisionResponse>(
     `/jobs/${encodeURIComponent(jobId)}/changes/${encodeURIComponent(changeId)}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(proposed ? { status, proposed } : { status }),
     },
   );
 }

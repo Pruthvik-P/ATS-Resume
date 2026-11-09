@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, File, Query, UploadFile, status
@@ -9,9 +11,11 @@ from sqlalchemy import func, select
 from app.api.deps import CurrentUser, SessionDep, as_uuid, record_audit
 from app.core.config import settings
 from app.core.errors import NotFoundError, UploadTooLargeError
+from app.core.ratelimit import enforce_rate_limit
 from app.db.models import Resume, ResumeVersion
 from app.schemas.resume import ResumeRead, ResumeSummary, ResumeVersionRead
 from app.services.ingest.pipeline import ingest_bytes
+from app.services.retention import delete_resumes
 from app.storage.local import get_storage
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -29,6 +33,13 @@ async def upload_resume(
     user: CurrentUser,
     file: UploadFile = File(...),
 ) -> ResumeRead:
+    if settings.rate_limit_uploads_per_minute:
+        enforce_rate_limit(
+            f"upload:{user.id}",
+            settings.rate_limit_uploads_per_minute,
+            60,
+        )
+
     data = await file.read(settings.max_upload_bytes + 1)
     if len(data) > settings.max_upload_bytes:
         raise UploadTooLargeError(settings.max_upload_bytes)
@@ -57,14 +68,29 @@ async def upload_resume(
     if result.document.format in {"tex", "zip"}:
         resume.tex_url = key
 
-    session.add(
-        ResumeVersion(
-            resume_id=resume.id,
-            version=1,
-            tex_url=resume.tex_url,
-            change_log_json=[{"type": "upload", "format": result.document.format}],
-        )
+    version = ResumeVersion(
+        resume_id=resume.id,
+        version=1,
+        tex_url=resume.tex_url,
+        change_log_json=[
+            {
+                "type": "upload",
+                "format": result.document.format,
+                "source_artifact": key,
+                "at": datetime.now(UTC).isoformat(),
+            }
+        ],
     )
+    session.add(version)
+    await session.flush()
+
+    snapshot_key = f"resumes/{resume.id}/versions/{version.id}/rev-1.json"
+    snapshot_bytes = json.dumps(
+        result.document.model_dump(mode="json"), indent=2, sort_keys=True, default=str
+    ).encode("utf-8")
+    await storage.save(snapshot_key, snapshot_bytes)
+    version.snapshot_url = snapshot_key
+
     await record_audit(
         session,
         user_id=user.id,
@@ -138,6 +164,9 @@ async def list_versions(
             resume_id=str(version.resume_id),
             version=version.version,
             parent_version_id=str(version.parent_version_id) if version.parent_version_id else None,
+            tex_url=version.tex_url,
+            pdf_url=version.pdf_url,
+            snapshot_url=version.snapshot_url,
             change_log=version.change_log_json or [],
             score_id=str(version.score_id) if version.score_id else None,
             created_at=version.created_at,
@@ -152,11 +181,7 @@ async def delete_resume(resume_id: str, session: SessionDep, user: CurrentUser) 
     if not row or row.user_id != user.id or row.deleted_at is not None:
         raise NotFoundError("resume", resume_id)
 
-    storage = get_storage()
-    for key in (row.raw_file_url, row.tex_url):
-        if key:
-            await storage.delete(key)
-
+    await delete_resumes(session, [row])
     await record_audit(
         session,
         user_id=user.id,
@@ -164,5 +189,4 @@ async def delete_resume(resume_id: str, session: SessionDep, user: CurrentUser) 
         resource="resume",
         resource_id=str(row.id),
     )
-    await session.delete(row)
     await session.commit()

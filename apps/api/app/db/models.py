@@ -74,6 +74,9 @@ class ResumeVersion(Base, TimestampMixin):
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     tex_url: Mapped[str | None] = mapped_column(String(512))
     pdf_url: Mapped[str | None] = mapped_column(String(512))
+    # JSON snapshot of the canonical resume at this version, stored through the
+    # storage backend. This makes a version reconstructable without a compiler.
+    snapshot_url: Mapped[str | None] = mapped_column(String(512))
     change_log_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     # Convenience pointer only. Keeping this FK would create a cycle with
     # score_reports.resume_version_id, which breaks ordered DDL on Postgres.
@@ -161,6 +164,11 @@ class Job(Base, TimestampMixin):
     error: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    idempotency_key: Mapped[str | None] = mapped_column(String(128))
+
+    __table_args__ = (
+        Index("ix_jobs_user_idempotency", "user_id", "idempotency_key", unique=True),
+    )
 
 
 class AuditLog(Base, TimestampMixin):

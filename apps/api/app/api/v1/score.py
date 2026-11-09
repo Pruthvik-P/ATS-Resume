@@ -24,9 +24,17 @@ async def create_score(
         resume_id=str(resume.id), jd_id=str(jd.id), document=document, analysis=analysis
     )
 
+    latest_version = await session.scalar(
+        select(ResumeVersion)
+        .where(ResumeVersion.resume_id == resume.id)
+        .order_by(ResumeVersion.version.desc())
+        .limit(1)
+    )
+
     row = ScoreReportRow(
         resume_id=resume.id,
         jd_id=jd.id,
+        resume_version_id=latest_version.id if latest_version is not None else None,
         overall=report.overall_score,
         raw_score=report.raw_score,
         grade=report.grade,
@@ -40,12 +48,6 @@ async def create_score(
     report.id = str(row.id)
     row.report_json = report.model_dump(mode="json")
 
-    latest_version = await session.scalar(
-        select(ResumeVersion)
-        .where(ResumeVersion.resume_id == resume.id)
-        .order_by(ResumeVersion.version.desc())
-        .limit(1)
-    )
     if latest_version is not None:
         latest_version.score_id = row.id
 

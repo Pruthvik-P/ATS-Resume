@@ -7,6 +7,7 @@ import {
   createOptimise,
   createScore,
   decideChange,
+  editChange,
   getJob,
   jobEventsUrl,
   uploadResume,
@@ -509,12 +510,13 @@ export function UploadForm() {
   const handleDecision = async (
     changeId: string,
     status: "accepted" | "rejected",
+    proposed?: string,
   ) => {
     if (!job || !result) return;
     setPendingChangeId(changeId);
     setDecisionError(null);
     try {
-      const decision = await decideChange(job.id, changeId, status);
+      const decision = await decideChange(job.id, changeId, status, proposed);
       setResult((current) =>
         current
           ? {
@@ -529,6 +531,31 @@ export function UploadForm() {
     } catch (decisionFailure) {
       const scanError = normaliseError(decisionFailure, "optimise");
       setDecisionError(scanError.message);
+    } finally {
+      setPendingChangeId(null);
+    }
+  };
+
+  const handleEdit = async (changeId: string, proposed: string) => {
+    if (!job || !result) return;
+    setPendingChangeId(changeId);
+    setDecisionError(null);
+    try {
+      const change = await editChange(job.id, changeId, proposed);
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              proposals: current.proposals.map((proposal) =>
+                proposal.id === change.id ? change : proposal,
+              ),
+            }
+          : current,
+      );
+    } catch (editFailure) {
+      const scanError = normaliseError(editFailure, "optimise");
+      setDecisionError(scanError.message);
+      throw new Error(scanError.message);
     } finally {
       setPendingChangeId(null);
     }
@@ -755,9 +782,10 @@ export function UploadForm() {
                 job={job}
                 result={result}
                 progress={progress}
-                onDecide={(changeId, status) =>
-                  void handleDecision(changeId, status)
+                onDecide={(changeId, status, proposed) =>
+                  void handleDecision(changeId, status, proposed)
                 }
+                onEdit={handleEdit}
                 pendingChangeId={pendingChangeId}
                 decisionError={decisionError}
               />

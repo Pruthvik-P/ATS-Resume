@@ -14,14 +14,18 @@ The product and system design live in
 | JD analysis (must/nice skills, seniority, years, knock-outs) | Implemented |
 | Seven-component explainable scoring with caps and penalties | Implemented |
 | Truthfulness-constrained optimisation proposals + accept/reject | Implemented |
+| Accepted changes → derived resume version + score report | Implemented (metadata only; source/PDF not regenerated yet) |
 | Facts Bank | Implemented |
 | PostgreSQL + Alembic schema | Implemented |
 | Sandboxed LaTeX compile + PDF parse-fidelity comparison | Not yet (Phase 2) |
 | OCR for scanned PDFs | Not yet (Phase 2) |
 | Trained embeddings / pgvector search | Not yet (Phase 2) — see `HashedEmbedder` |
 | Celery/Temporal worker | Not yet — jobs run in-process |
-| LLM rewriting | Pluggable; ships as a deterministic stub |
-| DOCX export, versioned file patching | Not yet (Phase 3) |
+| LLM structuring / rewriting | Pluggable; ships as a deterministic stub |
+| PDF/DOCX/TEX export, source patching, diff UI | Not yet (Phase 3) |
+
+See [`pending.md`](../../pending.md) at the repository root for the full,
+doc-by-doc gap list.
 
 ## Quick start
 

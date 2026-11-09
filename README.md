@@ -8,6 +8,7 @@ never invent a fact to raise a score.
   — product, system design, scoring model, roadmap.
 - [`apps/web`](apps/web) — Next.js landing page and intake UI.
 - [`apps/api`](apps/api) — FastAPI gateway and Phase 1 engine.
+- [`pending.md`](pending.md) — remaining work against the architecture doc.
 - [`infra/docker-compose.yml`](infra/docker-compose.yml) — Postgres + Redis + API + web UI.
 
 ## Quick start: run everything in Docker

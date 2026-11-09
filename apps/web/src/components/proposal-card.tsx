@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { ChangeProposal, ChangeStatus } from "@/lib/api-types";
 import { humanize } from "@/lib/format";
 
@@ -27,6 +30,8 @@ const RISK_CLASS: Record<ChangeProposal["risk"], string> = {
   medium: "text-signal",
   high: "text-redline",
 };
+
+const PLACEHOLDER_RE = /\[ADD METRIC:[^\]]*\]/i;
 
 function StatusNote({ status }: { status: ChangeStatus }) {
   if (status === "accepted") {
@@ -64,9 +69,7 @@ function DiffPane({
         <span aria-hidden="true">{sign}</span>
         {label}
       </div>
-      <p className="whitespace-pre-wrap text-caption leading-relaxed">
-        {text}
-      </p>
+      <p className="whitespace-pre-wrap text-caption leading-relaxed">{text}</p>
     </div>
   );
 }
@@ -75,15 +78,55 @@ export function ProposalCard({
   proposal,
   pending,
   onDecide,
+  onEdit,
 }: {
   proposal: ChangeProposal;
   pending: boolean;
-  onDecide: (status: "accepted" | "rejected") => void;
+  onDecide: (status: "accepted" | "rejected", proposed?: string) => void;
+  onEdit: (proposed: string) => Promise<void>;
 }) {
   const needsInput = proposal.truthfulness === "needs_user_input";
   const isPlaceholder = proposal.kind === "placeholder_metric";
-  const canAccept = proposal.truthfulness === "verified";
+  const isEditable =
+    proposal.kind === "rewrite_bullet" || proposal.kind === "placeholder_metric";
   const hasDiff = Boolean(proposal.original || proposal.proposed);
+
+  // A null draft means "show the server value". The draft only becomes local
+  // while the user is actively editing, so a saved proposal never goes stale.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [editing, setEditing] = useState(needsInput && isEditable);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const currentDraft = draft ?? proposal.proposed;
+  const hasPlaceholder = PLACEHOLDER_RE.test(currentDraft);
+  const dirty = currentDraft.trim() !== proposal.proposed.trim();
+  const canAccept =
+    proposal.truthfulness === "verified" &&
+    !hasPlaceholder &&
+    currentDraft.trim().length > 0;
+
+  const saveEdit = async () => {
+    if (!currentDraft.trim() || savingEdit) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await onEdit(currentDraft);
+      setDraft(null);
+      setEditing(false);
+    } catch (error) {
+      setEditError(
+        error instanceof Error ? error.message : "The edit could not be saved.",
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const accept = () => {
+    const proposed = dirty && !hasPlaceholder ? currentDraft : undefined;
+    onDecide("accepted", proposed);
+  };
 
   return (
     <div className="border border-line bg-paper">
@@ -103,6 +146,11 @@ export function ProposalCard({
           {KIND_LABEL[proposal.kind]}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {proposal.edited_by_user && (
+            <span className="border border-accent/25 bg-accent-soft px-2 py-0.5 font-data text-[9px] font-medium uppercase tracking-[0.1em] text-accent-strong">
+              edited by you
+            </span>
+          )}
           <span
             className={`border px-2 py-0.5 font-data text-[9px] font-medium uppercase tracking-[0.1em] ${TRUTHFULNESS_CLASS[proposal.truthfulness]}`}
           >
@@ -128,7 +176,7 @@ export function ProposalCard({
           </div>
         )}
 
-        {hasDiff && (
+        {hasDiff && !editing && (
           <div className="space-y-2.5">
             {proposal.original && (
               <DiffPane
@@ -141,11 +189,68 @@ export function ProposalCard({
             {proposal.proposed && (
               <DiffPane
                 sign="+"
-                label={isPlaceholder ? "proposed · placeholder" : "proposed"}
+                label={
+                  isPlaceholder && hasPlaceholder
+                    ? "proposed · placeholder"
+                    : "proposed"
+                }
                 text={proposal.proposed}
                 tone="proposed"
               />
             )}
+          </div>
+        )}
+
+        {editing && isEditable && (
+          <div className="border border-accent/30 bg-accent-soft/30 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="font-data text-[9px] uppercase tracking-[0.14em] text-accent-strong">
+                edit proposal
+              </span>
+              <span className="font-data text-[9px] text-muted">
+                user-authored text is saved as a confirmed fact
+              </span>
+            </div>
+            <textarea
+              value={currentDraft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={4}
+              aria-label="Edit proposed bullet"
+              className="w-full resize-y border border-line bg-paper p-3 text-caption leading-relaxed text-ink outline-none transition-colors focus:border-accent"
+            />
+            {hasPlaceholder && (
+              <p className="mt-2 border-l-2 border-signal pl-3 font-data text-[9px] leading-relaxed text-signal">
+                Replace the [ADD METRIC: …] placeholder with a real number before
+                accepting. The engine will not invent one.
+              </p>
+            )}
+            {editError && (
+              <p className="mt-2 border-l-2 border-redline pl-3 text-caption text-redline">
+                {editError}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void saveEdit()}
+                disabled={savingEdit || !currentDraft.trim() || !dirty}
+                className="inline-flex h-8 items-center bg-accent px-3 font-data text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-ink transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingEdit ? "Verifying…" : "Save & verify"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(null);
+                  setEditError(null);
+                  setEditing(false);
+                }}
+                disabled={savingEdit}
+                className="inline-flex h-8 items-center border border-line px-3 font-data text-[10px] font-medium uppercase tracking-[0.1em] text-ink transition-colors hover:bg-bg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 
@@ -155,11 +260,17 @@ export function ProposalCard({
           </p>
         )}
 
-        {isPlaceholder && (
-          <p className="border-l-2 border-signal pl-3 font-data text-[9px] leading-relaxed text-signal">
-            The placeholder must be replaced with a real number. This build has
-            no proposal editor yet, so the placeholder cannot be accepted as-is.
-          </p>
+        {(proposal.verification_notes?.length ?? 0) > 0 && (
+          <div className="border-l-2 border-signal/60 pl-3">
+            {proposal.verification_notes?.map((note) => (
+              <p
+                key={note}
+                className="font-data text-[9px] leading-relaxed text-signal"
+              >
+                verifier: {note}
+              </p>
+            ))}
+          </div>
         )}
 
         {(proposal.evidence_spans.length > 0 ||
@@ -199,21 +310,31 @@ export function ProposalCard({
             {canAccept ? (
               <button
                 type="button"
-                onClick={() => onDecide("accepted")}
-                disabled={pending}
+                onClick={accept}
+                disabled={pending || savingEdit}
                 className="inline-flex h-8 items-center bg-ok px-3 font-data text-[10px] font-semibold uppercase tracking-[0.1em] text-paper transition-colors hover:bg-ok/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {pending ? "Saving…" : "Accept"}
+                {pending ? "Saving…" : dirty ? "Accept with edit" : "Accept"}
               </button>
             ) : (
               <span className="inline-flex h-8 items-center border border-signal/30 bg-signal-soft px-3 font-data text-[10px] font-semibold uppercase tracking-[0.1em] text-signal">
                 {needsInput ? "Your input required" : "Not acceptable as-is"}
               </span>
             )}
+            {isEditable && !editing && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={pending || savingEdit}
+                className="inline-flex h-8 items-center border border-accent/30 bg-accent-soft/50 px-3 font-data text-[10px] font-medium uppercase tracking-[0.1em] text-accent-strong transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPlaceholder ? "Fill in metric" : "Edit wording"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onDecide("rejected")}
-              disabled={pending}
+              disabled={pending || savingEdit}
               className="inline-flex h-8 items-center border border-line px-3 font-data text-[10px] font-medium uppercase tracking-[0.1em] text-ink transition-colors hover:bg-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               {needsInput ? "Dismiss question" : "Reject"}
@@ -224,30 +345,23 @@ export function ProposalCard({
           </>
         ) : (
           <>
-            <span
-              aria-live="polite"
-              className="font-data text-[10px]"
-            >
+            <span aria-live="polite" className="font-data text-[10px]">
               <StatusNote status={proposal.status} />
             </span>
-            {canAccept && (
-              <button
-                type="button"
-                onClick={() =>
-                  onDecide(
-                    proposal.status === "accepted" ? "rejected" : "accepted",
-                  )
-                }
-                disabled={pending}
-                className="ml-auto font-data text-[9px] uppercase tracking-[0.1em] text-muted underline underline-offset-4 transition-colors hover:text-ink disabled:opacity-50"
-              >
-                {pending
-                  ? "Saving…"
-                  : proposal.status === "accepted"
-                    ? "reject instead"
-                    : "accept instead"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() =>
+                onDecide(proposal.status === "accepted" ? "rejected" : "accepted")
+              }
+              disabled={pending}
+              className="ml-auto font-data text-[9px] uppercase tracking-[0.1em] text-muted underline underline-offset-4 transition-colors hover:text-ink disabled:opacity-50"
+            >
+              {pending
+                ? "Saving…"
+                : proposal.status === "accepted"
+                  ? "reject instead · undo"
+                  : "accept instead"}
+            </button>
           </>
         )}
       </div>

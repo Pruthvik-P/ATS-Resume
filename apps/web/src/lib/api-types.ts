@@ -213,6 +213,8 @@ export interface ChangeProposal {
   risk: "low" | "medium" | "high";
   status: ChangeStatus;
   truthfulness: Truthfulness;
+  edited_by_user?: boolean;
+  verification_notes?: string[];
 }
 
 export interface VerifierSummary {
@@ -271,4 +273,9 @@ export interface ChangeDecisionResponse {
   job_id: string;
   change: ChangeProposal;
   score_after_accepted: number;
+  version_id?: string | null;
+  score_id?: string | null;
+  snapshot_url?: string | null;
+  previous_status?: ChangeStatus | null;
+  idempotent_replay?: boolean;
 }
