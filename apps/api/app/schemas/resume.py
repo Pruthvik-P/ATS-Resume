@@ -139,6 +139,9 @@ class ResumeDocument(BaseModel):
     issues: list[ParseIssue] = Field(default_factory=list)
     raw_text: str | None = None
     structuring: StructuringMeta = Field(default_factory=StructuringMeta)
+    # Extractor agreement, layout flags, compiler status, and related evidence.
+    # Kept as a dict so new extractors do not change the public schema shape.
+    parse_fidelity: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResumeRead(ORMModel):

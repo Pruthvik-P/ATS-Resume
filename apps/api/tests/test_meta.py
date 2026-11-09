@@ -17,6 +17,9 @@ async def test_meta_documents_weights(client):
     assert abs(sum(body["scoring_weights"].values()) - 1.0) < 1e-9
     assert body["scoring_weights"]["keyword_match"] == 0.30
     assert body["caps"]["missing_must_have"] == 70.0
+    assert body["latex_compile"]["enabled"] is False
+    assert body["latex_compile"]["engine"] == "auto"
+    assert body["latex_compile"]["ocr_enabled"] is False
 
 
 async def test_api_key_required_when_configured(client, monkeypatch):

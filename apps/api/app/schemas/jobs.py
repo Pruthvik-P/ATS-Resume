@@ -125,6 +125,7 @@ class ChangeDecisionResponse(BaseModel):
     version_id: str | None = None
     score_id: str | None = None
     snapshot_url: str | None = None
+    pdf_url: str | None = None
     previous_status: ChangeStatus | None = None
     idempotent_replay: bool = False
 

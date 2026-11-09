@@ -1,6 +1,6 @@
 # ATS Engine API
 
-FastAPI gateway and Phase 1 engine for the AI ATS resume scorer and optimiser.
+FastAPI gateway and Phase 2 LaTeX/parse engine for the AI ATS resume scorer and optimiser.
 The product and system design live in
 [`ats-resume-optimizer-architecture.md`](../../ats-resume-optimizer-architecture.md).
 
@@ -14,11 +14,12 @@ The product and system design live in
 | JD analysis (must/nice skills, seniority, years, knock-outs) | Implemented |
 | Seven-component explainable scoring with caps and penalties | Implemented |
 | Truthfulness-constrained optimisation proposals + accept/reject | Implemented |
-| Accepted changes → derived resume version + score report | Implemented (metadata only; source/PDF not regenerated yet) |
+| Accepted changes → derived resume version + score report | Implemented; validation PDF when the sandboxed compiler is enabled |
 | Facts Bank | Implemented |
 | PostgreSQL + Alembic schema | Implemented |
-| Sandboxed LaTeX compile + PDF parse-fidelity comparison | Not yet (Phase 2) |
-| OCR for scanned PDFs | Not yet (Phase 2) |
+| Sandboxed LaTeX compile + PDF parse-fidelity comparison | Implemented, opt-in (`ATS_LATEX_COMPILE_ENABLED`); worker image required |
+| Zip / `\input` / `\include` resolution | Implemented |
+| OCR for scanned PDFs | Optional (`ATS_OCR_ENABLED` + Tesseract + `.[ocr]`) |
 | Trained embeddings / pgvector search | Not yet (Phase 2) — see `HashedEmbedder` |
 | Celery/Temporal worker | Not yet — jobs run in-process |
 | LLM structuring / rewriting | Pluggable; ships as a deterministic stub |
@@ -46,7 +47,7 @@ required unless `ATS_API_KEY` is set.
 ### Tests and checks
 
 ```bash
-uv run pytest -q          # 42 tests
+uv run pytest -q          # 79 tests
 uv run ruff check app tests
 ```
 
@@ -155,6 +156,7 @@ apps/api/
 │   ├── schemas/         # Pydantic v2 contracts
 │   ├── services/
 │   │   ├── ingest/      # pdf, docx, latex, heuristic structurer
+│   │   ├── latex/       # project resolution, sandbox compile client, renderer
 │   │   ├── scoring/     # 7 components + engine + embedder
 │   │   ├── llm/         # provider interface + versioned prompts
 │   │   ├── jd_analyser.py
@@ -184,6 +186,22 @@ See [`.env.example`](.env.example). Highlights:
 - `ATS_API_KEY` — when set, required as `X-API-Key` (or `?api_key=` for SSE)
 - `ATS_ALLOWED_ORIGINS` — comma-separated CORS origins
 - `ATS_LLM_PROVIDER` — `stub` (default), `openai`, or `anthropic`
+- `ATS_LATEX_COMPILE_ENABLED` — `false` by default; enables the sandboxed compiler
+- `ATS_LATEX_COMPILE_ENGINE` — `auto` (HTTP worker → Docker → local), `docker`, or `local`
+- `ATS_LATEX_WORKER_URL` — long-lived worker URL, e.g. `http://localhost:8099`
+- `ATS_LATEX_WORKER_IMAGE` — image used for the one-shot Docker fallback
+- `ATS_OCR_ENABLED` — enables the optional Tesseract fallback
+
+### LaTeX pipeline
+
+When compilation is enabled, ingestion resolves zip includes, statically rejects
+unsafe constructs, compiles the project in the sandboxed worker, and extracts the
+compiled PDF with every available extractor. The PDF text is authoritative for
+structuring; extractor agreement and layout flags are stored in
+`ResumeDocument.parse_fidelity`. The optimiser and change acceptance compile the
+canonical ATS-safe render and roll back on a real compile failure. If no worker or
+engine is available, ingestion records `compile_status: unavailable` and continues
+with static analysis instead of rejecting the upload.
 
 ## Docker
 
@@ -191,11 +209,12 @@ See [`.env.example`](.env.example). Highlights:
 docker compose -f infra/docker-compose.yml up --build -d
 ```
 
-This starts Postgres 16 + pgvector, Redis (reserved for Phase 2), the API on
-<http://localhost:8000>, and the Next.js UI on <http://localhost:3000>. The API
-container runs `alembic upgrade head` before starting Uvicorn, and the UI starts
-only after the API health check passes. See the root
-[`README.md`](../../README.md) for logs, stop, reset, and optional API-key
+This starts Postgres 16 + pgvector, Redis (reserved for Phase 2), the sandboxed
+LaTeX worker, the API on <http://localhost:8000>, and the Next.js UI on
+<http://localhost:3000>. The API container runs `alembic upgrade head` before
+starting Uvicorn, and the UI starts only after the API health check passes.
+Compilation stays disabled unless you set `ATS_LATEX_COMPILE_ENABLED=true`. See the
+root [`README.md`](../../README.md) for logs, stop, reset, and optional API-key
 commands.
 
 ## Deliberate deviations from the doc
@@ -203,11 +222,19 @@ commands.
 - **Jobs run in-process** via FastAPI `BackgroundTasks`. The `jobs` table,
   statuses, progress, and SSE stream are the same shape a Celery/Temporal
   worker will use, so swapping the executor does not change the API.
-- **Optimiser returns proposals, not patched files.** Phase 1 has no
-  sandboxed compiler, so it does not claim to produce a recompiled PDF.
-  `score_after_accepted` is a real re-score of the accepted proposal set.
-- **PDF extraction is `pypdf`**, with optional PyMuPDF if installed. OCR and
-  multi-extractor comparison arrive with the render worker.
+- **Optimiser returns proposals, not patched files.** The optimiser edits canonical
+  JSON and validates the canonical ATS-safe render through the sandboxed compiler.
+  It does not patch the user's original template in place. `score_after_accepted` is a
+  real re-score of the accepted proposal set.
+- **PDF extraction uses `pypdf` plus optional PyMuPDF and `pdftotext`.** The API Docker
+  image installs the `pdf` extra and `poppler-utils`, so all three run in production.
+  Extractor agreement is reported rather than treated as ground truth. The compiled PDF
+  is authoritative only when compilation is enabled and succeeds.
+- **Apache Tika and full reading-order reconstruction are not implemented.** Layout
+  detection relies on PyMuPDF block geometry.
+- **The LaTeX worker is a separate image.** The API image stays small; the worker
+  carries TeX Live, runs read-only with limits, and is attached to an internal-only
+  network in Compose.
 - **Semantic scoring uses a deterministic hashed n-gram embedder**, not a
   trained model. Thresholds are recorded in score details so calibration is
   visible rather than implied.

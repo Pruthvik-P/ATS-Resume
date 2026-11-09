@@ -30,4 +30,10 @@ async def meta() -> MetaResponse:
         match_tiers={"exact": 1.0, "alias": 0.95, "semantic": 0.6},
         embedding_model="hashed-ngram-v1",
         llm_provider=settings.llm_provider,
+        latex_compile={
+            "enabled": settings.latex_compile_enabled,
+            "engine": settings.latex_compile_engine,
+            "worker_configured": bool(settings.latex_worker_url),
+            "ocr_enabled": settings.ocr_enabled,
+        },
     )

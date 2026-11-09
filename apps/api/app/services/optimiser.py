@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from uuid import uuid4
@@ -15,6 +16,8 @@ from app.schemas.jobs import (
 )
 from app.schemas.resume import Resume, ResumeDocument, SkillGroup
 from app.schemas.score import ScoreReport
+from app.services.latex.compiler import compile_source
+from app.services.latex.render import render_resume_tex
 from app.services.llm.base import get_llm_provider
 from app.services.llm.prompts import PROMPT_VERSION, REWRITER_SYSTEM_PROMPT
 from app.services.scoring.engine import build_score_report
@@ -458,6 +461,23 @@ def apply_proposals(
     return _apply(document, accepted, analysis)
 
 
+def _compile_guard(document: ResumeDocument) -> tuple[bool, str | None]:
+    """Compile the candidate resume when the sandboxed pipeline is enabled.
+
+    A candidate that cannot be compiled is rolled back before it can be
+    accepted. Availability problems (no worker configured) are not treated as
+    candidate failures; only a real compile error blocks the change.
+    """
+
+    if not settings.latex_compile_enabled:
+        return True, None
+    result = compile_source(render_resume_tex(document), filename="resume.tex")
+    if result.status in {"failed", "timeout", "rejected"}:
+        detail = (result.reason or result.log or "compile failed").strip()
+        return False, detail[:600]
+    return True, None
+
+
 async def run_optimisation(
     *,
     job_id: str,
@@ -476,6 +496,7 @@ async def run_optimisation(
     current_report = baseline
     iterations = 0
     stopped: str = "max_iterations"
+    compile_failure: str | None = None
 
     for iteration in range(1, options.max_iterations + 1):
         iterations = iteration
@@ -509,19 +530,36 @@ async def run_optimisation(
             break
 
         remaining = options.max_changes - len(proposals)
+        iteration_start = len(proposals)
         proposals.extend(new_candidates[:remaining])
         if len(proposals) >= options.max_changes:
             stopped = "max_iterations"
             break
 
         applied = [proposal for proposal in proposals if proposal.truthfulness == "verified"]
-        current_document = _apply(document, applied, analysis)
-        current_report = build_score_report(
+        candidate_document = _apply(document, applied, analysis)
+        candidate_report = build_score_report(
             resume_id=baseline.resume_id,
             jd_id=baseline.jd_id,
-            document=current_document,
+            document=candidate_document,
             analysis=analysis,
         )
+
+        compiled, compile_reason = await asyncio.to_thread(
+            _compile_guard, candidate_document
+        )
+        if not compiled:
+            # Roll back the whole iteration: none of its proposals may survive.
+            del proposals[iteration_start:]
+            compile_failure = compile_reason
+            verifier.reasons.append(
+                f"Compile guard rolled back iteration {iteration}: {compile_reason}"
+            )
+            stopped = "failed"
+            break
+
+        current_document = candidate_document
+        current_report = candidate_report
 
         if current_report.overall_score >= target:
             stopped = "target_reached"
@@ -531,6 +569,11 @@ async def run_optimisation(
         1 for proposal in proposals if proposal.truthfulness == "needs_user_input"
     )
     notes: list[str] = []
+    if compile_failure:
+        notes.append(
+            "The last optimiser iteration was rolled back because the sandboxed "
+            f"LaTeX compiler rejected it: {compile_failure}"
+        )
     if any(proposal.kind == "missing_skill_question" for proposal in proposals):
         notes.append(
             "Missing must-haves are surfaced as questions, not inserted. Add real evidence "

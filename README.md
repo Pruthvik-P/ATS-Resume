@@ -9,20 +9,21 @@ never invent a fact to raise a score.
 - [`apps/web`](apps/web) — Next.js landing page and intake UI.
 - [`apps/api`](apps/api) — FastAPI gateway and Phase 1 engine.
 - [`pending.md`](pending.md) — remaining work against the architecture doc.
-- [`infra/docker-compose.yml`](infra/docker-compose.yml) — Postgres + Redis + API + web UI.
+- [`infra/docker-compose.yml`](infra/docker-compose.yml) — Postgres + Redis + API + web UI + LaTeX worker.
+- [`services/latex_worker`](services/latex_worker) — sandboxed TeX Live compile worker.
 
 ## Quick start: run everything in Docker
 
 Requirements: Docker with Compose v2 (Docker Desktop on Windows/macOS). Python
 and Node are **not** needed on the host — both run inside the containers.
 
-First run (builds the images, then starts Postgres, the API, and the UI):
+First run (builds the images, then starts Postgres, the LaTeX worker, the API, and the UI):
 
 ```bash
 docker compose -f infra/docker-compose.yml up --build -d
 ```
 
-Wait until `postgres`, `api`, and `web` report `(healthy)`:
+Wait until `postgres`, `latex_worker`, `api`, and `web` report `(healthy)`:
 
 ```bash
 docker compose -f infra/docker-compose.yml ps
@@ -36,6 +37,7 @@ Then open **<http://localhost:3000/start>**.
 | API | <http://localhost:8000> · [docs](http://localhost:8000/docs) | FastAPI; runs `alembic upgrade head` on boot |
 | Postgres | `localhost:5432` | user/password/database: `ats` / `ats` / `ats` |
 | Redis | `localhost:6379` | reserved for Phase 2; the API does not use it yet |
+| LaTeX worker | internal only | sandboxed compile worker; enable with `ATS_LATEX_COMPILE_ENABLED=true` |
 
 ### Day-to-day commands
 
@@ -90,6 +92,21 @@ docker compose -f infra/docker-compose.yml up -d --build
 You can also copy [`infra/.env.example`](infra/.env.example) to `infra/.env` and
 put `ATS_API_KEY=...` there; Compose reads it automatically. Do not prefix it
 with `NEXT_PUBLIC_`.
+
+### Optional: enable sandboxed LaTeX compilation
+
+The `latex_worker` service is built and started with the stack, but compilation
+is opt-in because TeX Live is heavy and a compile adds latency to uploads:
+
+```powershell
+$env:ATS_LATEX_COMPILE_ENABLED = "true"
+docker compose -f infra/docker-compose.yml up -d --build
+```
+
+The worker runs read-only, non-root, with dropped capabilities and CPU/memory/PID
+limits, and is reachable only over an internal Compose network. When it is
+unavailable, uploads continue with static LaTeX analysis and record
+`compile_status: unavailable`.
 
 ## Local development (optional)
 

@@ -32,6 +32,8 @@ from app.schemas.jobs import (
 from app.schemas.resume import ResumeDocument
 from app.schemas.score import ScoreReport
 from app.services.jobs import run_optimise_job
+from app.services.latex.compiler import CompileResult, compile_source
+from app.services.latex.render import render_resume_tex
 from app.services.optimiser import apply_proposals
 from app.services.scoring.engine import build_score_report
 from app.services.verifier import verify_user_edit
@@ -213,6 +215,37 @@ async def _load_job_base_document(
     return ResumeDocument.model_validate(resume.canonical_json)
 
 
+async def _validate_document_compiles(
+    document: ResumeDocument, *, strict: bool = True
+) -> CompileResult | None:
+    """Validate a candidate resume through the sandboxed compiler.
+
+    Returning ``None`` means compilation is disabled. An ``unavailable``
+    worker is not a candidate failure; only real compile errors block a strict
+    decision. A successful compile supplies the PDF artifact stored with the
+    derived version. The compile call is offloaded so it cannot block the
+    event loop.
+    """
+
+    if not settings.latex_compile_enabled:
+        return None
+    result = await asyncio.to_thread(
+        compile_source, render_resume_tex(document), "resume.tex"
+    )
+    if strict and result.status in {"failed", "timeout", "rejected"}:
+        raise AppError(
+            "compile_failed",
+            "The updated resume does not compile in the sandboxed LaTeX worker.",
+            status_code=409,
+            details={
+                "reason": result.reason,
+                "engine": result.engine,
+                "log": result.log[-4000:],
+            },
+        )
+    return result
+
+
 def _decision_event(
     *,
     job: Job,
@@ -250,6 +283,7 @@ async def _persist_accepted_changes(
     result: OptimiseResult,
     refreshed: ScoreReport,
     events: list[dict[str, Any]],
+    compiled: CompileResult | None = None,
 ) -> ResumeVersion | None:
     """Persist accepted edits as a resume version and a real score report.
 
@@ -312,9 +346,18 @@ async def _persist_accepted_changes(
     await storage.save(snapshot_key, snapshot_bytes)
     job_version.snapshot_url = snapshot_key
     # Provenance: the original source artifact that this derived version came
-    # from. PDF generation is still a Phase 2 worker, so pdf_url stays null.
+    # from, plus the validation PDF when the sandboxed compiler is enabled.
     if resume.tex_url:
         job_version.tex_url = resume.tex_url
+
+    pdf_key: str | None = None
+    if compiled and compiled.pdf:
+        pdf_key = (
+            f"resumes/{resume.id}/versions/{job_version.id}/rev-{job_version.version}"
+            f"-{revision}.pdf"
+        )
+        await storage.save(pdf_key, compiled.pdf)
+        job_version.pdf_url = pdf_key
 
     score_row: ScoreReportRow | None = None
     if job_version.score_id is not None:
@@ -353,6 +396,7 @@ async def _persist_accepted_changes(
         "job_id": str(job.id),
         "version": job_version.version,
         "snapshot_url": snapshot_key,
+        "pdf_url": pdf_key,
         "score_id": str(score_row.id),
         "source_artifact": resume.tex_url or resume.raw_file_url,
         "at": datetime.now(UTC).isoformat(),
@@ -590,6 +634,7 @@ async def decide_change(
             version_id=str(version.id) if version else None,
             score_id=str(version.score_id) if version and version.score_id else None,
             snapshot_url=version.snapshot_url if version else None,
+            pdf_url=str(version.pdf_url) if version and version.pdf_url else None,
             previous_status=previous_status,
             idempotent_replay=True,
         )
@@ -617,6 +662,15 @@ async def decide_change(
     )
     base_document = await _load_job_base_document(session, resume, job)
     updated_document = apply_proposals(base_document, result.proposals, analysis)
+    # A reject/revert must never be blocked by a compiler. Acceptances are
+    # validated strictly; a revert recompiles best-effort so the stored PDF
+    # matches the reverted snapshot when possible.
+    if payload.status == "accepted":
+        compiled = await _validate_document_compiles(updated_document, strict=True)
+    elif payload.status == "rejected" and previous_status == "accepted":
+        compiled = await _validate_document_compiles(updated_document, strict=False)
+    else:
+        compiled = None
     refreshed = build_score_report(
         resume_id=str(resume.id),
         jd_id=str(jd.id),
@@ -633,7 +687,17 @@ async def decide_change(
         result=result,
         refreshed=refreshed,
         events=events,
+        compiled=compiled,
     )
+    if (
+        version is not None
+        and payload.status == "rejected"
+        and previous_status == "accepted"
+        and not (compiled and compiled.pdf)
+    ):
+        # Do not leave a PDF from the previously accepted content attached to
+        # a snapshot that now represents the reverted content.
+        version.pdf_url = None
     job.result = result.model_dump(mode="json")
 
     action = "change.reverted" if events[0]["reverted"] else f"change.{payload.status}"
@@ -658,6 +722,7 @@ async def decide_change(
         version_id=str(version.id) if version else None,
         score_id=str(version.score_id) if version and version.score_id else None,
         snapshot_url=version.snapshot_url if version else None,
+        pdf_url=str(version.pdf_url) if version and version.pdf_url else None,
         previous_status=previous_status,
         idempotent_replay=False,
     )

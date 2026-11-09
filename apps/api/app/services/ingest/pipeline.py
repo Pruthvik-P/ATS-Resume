@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import io
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from app.core.config import settings
 from app.core.errors import UnsupportedFormatError
 from app.schemas.common import ParseIssue, SourceFormat
 from app.schemas.latex import LatexReport
@@ -13,6 +13,13 @@ from app.services.ingest.docx import extract_docx
 from app.services.ingest.latex import analyse_latex, latex_to_text
 from app.services.ingest.pdf import extract_pdf
 from app.services.ingest.structurer import structure_resume
+from app.services.latex.compiler import CompileResult, compile_project
+from app.services.latex.project import (
+    TexProject,
+    decode_tex,
+    load_tex_project,
+    resolve_project_source,
+)
 
 EXTENSION_FORMATS: dict[str, SourceFormat] = {
     ".pdf": "pdf",
@@ -27,13 +34,14 @@ MAGIC_FORMATS: tuple[tuple[bytes, SourceFormat], ...] = (
     (b"PK\x03\x04", "docx"),
 )
 
-MAX_ZIP_ENTRY_BYTES = 2 * 1024 * 1024
-
 
 @dataclass
 class IngestResult:
     document: ResumeDocument
     raw_text: str
+    project: TexProject | None = None
+    latex_report: LatexReport | None = None
+    compile_result: CompileResult | None = None
 
 
 def detect_format(filename: str, content_type: str | None, data: bytes) -> SourceFormat:
@@ -58,106 +66,178 @@ def detect_format(filename: str, content_type: str | None, data: bytes) -> Sourc
     )
 
 
-def _decode_tex(data: bytes) -> str:
-    for encoding in ("utf-8", "utf-8-sig", "latin-1"):
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return data.decode("utf-8", errors="replace")
+def _extraction_meta(
+    *,
+    source: str,
+    extractor: str | None = None,
+    extractors: list[str] | None = None,
+    agreement: float | None = None,
+    disagreements: list[str] | None = None,
+    layout: dict[str, object] | None = None,
+    page_count: int | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    meta: dict[str, Any] = {"source": source}
+    if extractor:
+        meta["extractor"] = extractor
+    if extractors:
+        meta["extractors"] = extractors
+    if agreement is not None:
+        meta["agreement"] = agreement
+    if disagreements:
+        meta["disagreements"] = disagreements
+    if layout:
+        meta["layout"] = layout
+    if page_count is not None:
+        meta["page_count"] = page_count
+    meta.update(extra)
+    return meta
 
 
-def _ingest_zip(data: bytes) -> tuple[str, str, LatexReport, list[ParseIssue]]:
-    issues: list[ParseIssue] = []
+def _ingest_latex(
+    *,
+    filename: str,
+    data: bytes,
+    issues: list[ParseIssue],
+) -> tuple[str, TexProject, LatexReport, dict[str, Any], CompileResult | None]:
     try:
-        archive = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile as exc:
-        raise UnsupportedFormatError("The uploaded zip file is corrupted.") from exc
+        project = load_tex_project(filename, data)
+    except ValueError as exc:
+        raise UnsupportedFormatError(str(exc)) from exc
+    if project is None:
+        raise UnsupportedFormatError("No LaTeX project was found in the upload.")
 
-    tex_entries: list[zipfile.ZipInfo] = []
-    total = 0
-    for info in archive.infolist():
-        if info.is_dir():
-            continue
-        name = info.filename.replace("\\", "/")
-        if name.startswith("/") or ".." in Path(name).parts:
-            raise UnsupportedFormatError("The zip contains an unsafe file path.")
-        if not name.lower().endswith((".tex", ".sty", ".cls")):
-            continue
-        total += info.file_size
-        if info.file_size > MAX_ZIP_ENTRY_BYTES or total > MAX_ZIP_ENTRY_BYTES:
-            raise UnsupportedFormatError("The zip contains LaTeX files that are too large.")
-        if name.lower().endswith(".tex"):
-            tex_entries.append(info)
+    issues.extend(project.issues)
+    resolved_source, resolution_issues = resolve_project_source(project)
+    issues.extend(resolution_issues)
 
-    if not tex_entries:
-        raise UnsupportedFormatError("The zip does not contain any .tex files.")
+    report = analyse_latex(resolved_source, filename=project.main_file)
+    if report.is_hostile:
+        from app.core.errors import HostileLatexError
 
-    decoded: list[tuple[str, str]] = [
-        (entry.filename, _decode_tex(archive.read(entry))) for entry in tex_entries
-    ]
-    main_name, main_source = next(
-        ((name, source) for name, source in decoded if "\\documentclass" in source),
-        decoded[0],
-    )
-    if len(decoded) > 1:
+        hostile = [
+            issue.message
+            for issue in report.issues
+            if issue.security_relevant and issue.severity == "error"
+        ]
+        raise HostileLatexError(hostile)
+
+    for latex_issue in report.issues:
         issues.append(
             ParseIssue(
-                code="zip_includes_not_resolved",
-                severity="info",
-                message=(
-                    f"{len(decoded)} .tex files found; analysing '{Path(main_name).name}'. "
-                    "\\input/\\include resolution arrives with the sandboxed compiler."
-                ),
+                code=latex_issue.code,
+                severity=latex_issue.severity,
+                message=latex_issue.message,
+                source_ref=None,
+                auto_fixable=bool(latex_issue.auto_fix),
             )
         )
-    report = analyse_latex(main_source, filename=Path(main_name).name)
-    return latex_to_text(main_source), main_source, report, issues
+
+    raw_text = latex_to_text(resolved_source)
+    fidelity = _extraction_meta(
+        source="latex",
+        main_file=project.main_file,
+        project_files=len(project.files),
+        compile_status="disabled",
+    )
+
+    compile_result: CompileResult | None = None
+    if settings.latex_compile_enabled:
+        compile_result = compile_project(project)
+        fidelity["compile_status"] = compile_result.status
+        fidelity["compile_engine"] = compile_result.engine
+        fidelity["compile_ms"] = compile_result.duration_ms
+        if compile_result.compiled and compile_result.pdf:
+            pdf_extraction = extract_pdf(compile_result.pdf)
+            issues.extend(pdf_extraction.issues)
+            if pdf_extraction.text.strip():
+                # The compiled PDF is the authoritative ATS view.
+                raw_text = pdf_extraction.text
+            fidelity.update(
+                {
+                    "extractor": pdf_extraction.extractor,
+                    "extractors": sorted(pdf_extraction.extractors),
+                    "agreement": pdf_extraction.agreement,
+                    "disagreements": pdf_extraction.disagreements,
+                    "layout": pdf_extraction.layout,
+                    "page_count": pdf_extraction.page_count,
+                }
+            )
+        elif compile_result.status in {"failed", "timeout"}:
+            issues.append(
+                ParseIssue(
+                    code="latex_compile_failed",
+                    severity="warning",
+                    message=(
+                        "The sandboxed LaTeX compiler could not build this document. "
+                        "Static analysis was used instead. Check the compile log in the job metadata."
+                    ),
+                )
+            )
+        elif compile_result.status == "rejected":
+            issues.append(
+                ParseIssue(
+                    code="latex_compile_rejected",
+                    severity="error",
+                    message="The LaTeX compiler refused this document for security reasons.",
+                )
+            )
+        elif compile_result.status == "unavailable":
+            issues.append(
+                ParseIssue(
+                    code="latex_compile_unavailable",
+                    severity="info",
+                    message=(
+                        "LaTeX compilation is enabled but no sandboxed worker is available. "
+                        "Static analysis was used instead."
+                    ),
+                )
+            )
+
+    return raw_text, project, report, fidelity, compile_result
 
 
 def ingest_bytes(filename: str, content_type: str | None, data: bytes) -> IngestResult:
     source_format = detect_format(filename, content_type, data)
     issues: list[ParseIssue] = []
     latex_report: LatexReport | None = None
-    tex_source: str | None = None
+    project: TexProject | None = None
+    compile_result: CompileResult | None = None
+    parse_fidelity: dict[str, Any] = {"source": source_format}
 
     if source_format == "pdf":
         extraction = extract_pdf(data)
         raw_text = extraction.text
         issues.extend(extraction.issues)
+        parse_fidelity = _extraction_meta(
+            source="pdf",
+            extractor=extraction.extractor,
+            extractors=sorted(extraction.extractors),
+            agreement=extraction.agreement,
+            disagreements=extraction.disagreements,
+            layout=extraction.layout,
+            page_count=extraction.page_count,
+        )
     elif source_format == "docx":
         extraction = extract_docx(data)
         raw_text = extraction.text
         issues.extend(extraction.issues)
+        parse_fidelity = _extraction_meta(
+            source="docx",
+            tables=extraction.table_count,
+            paragraphs=extraction.paragraph_count,
+            text_boxes=extraction.text_box_count,
+        )
     elif source_format in {"tex", "zip"}:
-        if source_format == "zip":
-            raw_text, tex_source, latex_report, zip_issues = _ingest_zip(data)
-            issues.extend(zip_issues)
-        else:
-            tex_source = _decode_tex(data)
-            latex_report = analyse_latex(tex_source, filename=Path(filename).name)
-            raw_text = latex_to_text(tex_source)
-        if latex_report.is_hostile:
-            hostile = [
-                issue.message
-                for issue in latex_report.issues
-                if issue.security_relevant and issue.severity == "error"
-            ]
-            from app.core.errors import HostileLatexError
-
-            raise HostileLatexError(hostile)
-        for latex_issue in latex_report.issues:
-            issues.append(
-                ParseIssue(
-                    code=latex_issue.code,
-                    severity=latex_issue.severity,
-                    message=latex_issue.message,
-                    source_ref=None,
-                    auto_fixable=bool(latex_issue.auto_fix),
-                )
-            )
+        (
+            raw_text,
+            project,
+            latex_report,
+            parse_fidelity,
+            compile_result,
+        ) = _ingest_latex(filename=filename, data=data, issues=issues)
     else:
-        raw_text = _decode_tex(data)
+        raw_text = decode_tex(data)
         if not raw_text.strip():
             issues.append(
                 ParseIssue(
@@ -177,8 +257,15 @@ def ingest_bytes(filename: str, content_type: str | None, data: bytes) -> Ingest
         issues=issues,
         raw_text=raw_text if len(raw_text) <= 40_000 else raw_text[:40_000],
         structuring=structuring,
+        parse_fidelity=parse_fidelity,
     )
-    return IngestResult(document=document, raw_text=raw_text)
+    return IngestResult(
+        document=document,
+        raw_text=raw_text,
+        project=project,
+        latex_report=latex_report,
+        compile_result=compile_result,
+    )
 
 
 def excerpt(text: str, limit: int = 400) -> str:
