@@ -97,7 +97,7 @@ export default function Home() {
               >
                 <Link
                   href="/start"
-                  className="group inline-flex h-12 items-center justify-center gap-3 bg-ink px-6 text-small font-semibold text-paper transition-colors hover:bg-ink-2"
+                  className="group inline-flex h-12 items-center justify-center gap-3 rounded-full bg-accent px-6 text-small font-semibold text-brand-ink transition-colors hover:bg-accent-strong"
                 >
                   Run a scan
                   <span
@@ -109,7 +109,7 @@ export default function Home() {
                 </Link>
                 <Link
                   href="#xray"
-                  className="inline-flex h-12 items-center justify-center border border-ink/20 px-6 text-small font-medium text-ink transition-colors hover:bg-bg"
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-line bg-paper px-6 text-small font-medium text-ink transition-colors hover:bg-bg"
                 >
                   See the X-Ray
                 </Link>
@@ -343,7 +343,7 @@ export default function Home() {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
                     href="/start"
-                    className="group inline-flex h-12 items-center justify-center gap-3 bg-sheet px-6 text-small font-semibold text-sheet-ink transition-colors hover:bg-sheet-bg"
+                    className="group inline-flex h-12 items-center justify-center gap-3 rounded-full bg-accent px-6 text-small font-semibold text-brand-ink transition-colors hover:bg-accent-strong"
                   >
                     Run a scan
                     <span
@@ -355,7 +355,7 @@ export default function Home() {
                   </Link>
                   <Link
                     href="#scoring"
-                    className="inline-flex h-12 items-center justify-center border border-white/20 px-6 text-small font-medium text-on-night transition-colors hover:bg-white/5"
+                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/20 px-6 text-small font-medium text-on-night transition-colors hover:bg-white/5"
                   >
                     Read the method
                   </Link>
