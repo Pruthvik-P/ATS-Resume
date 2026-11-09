@@ -703,7 +703,7 @@ export function UploadForm() {
             <button
               type="submit"
               disabled={!resumeFile || !jdText.trim() || busy}
-              className="inline-flex h-12 shrink-0 items-center justify-center gap-3 bg-ink px-6 text-small font-semibold text-paper transition-colors hover:bg-ink-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-12 shrink-0 items-center justify-center gap-3 rounded-full bg-accent px-6 text-small font-semibold text-brand-ink transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               <SubmitLabel phase={phase} />
               <span aria-hidden="true" className="font-data text-[12px]">

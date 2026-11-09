@@ -96,7 +96,7 @@ export function AtsXRay() {
           </div>
 
           {/* Machine view */}
-          <div className="relative overflow-hidden border border-white/10 bg-[#0B110C]">
+          <div className="relative overflow-hidden border border-white/10 bg-night">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
               <span className="flex items-center gap-2 font-data text-[10px] uppercase tracking-[0.16em] text-slate-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-redline" />

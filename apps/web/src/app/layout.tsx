@@ -1,34 +1,35 @@
 import type { Metadata } from "next";
 import {
-  Bricolage_Grotesque,
-  IBM_Plex_Sans,
-  IBM_Plex_Mono,
+  Instrument_Serif,
+  Inter,
+  JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({
+const instrument = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-bricolage",
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
   display: "swap",
 });
 
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-sans",
-  display: "swap",
-});
-
-const plexMono = IBM_Plex_Mono({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-plex-mono",
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "ATS.Resume — Stop guessing what the machine sees.",
+  title: "ats.resume — Stop guessing what the machine sees.",
   description:
     "An evidence-first ATS resume optimiser that shows its work. Parse, analyse the job description, score seven weighted components, and propose only edits your own experience supports.",
 };
@@ -42,7 +43,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${bricolage.variable} ${plexSans.variable} ${plexMono.variable} antialiased`}
+      className={`${instrument.variable} ${inter.variable} ${jetbrains.variable} antialiased`}
     >
       <head>
         {/* Runs while the HTML is parsed, before the first paint. The class
