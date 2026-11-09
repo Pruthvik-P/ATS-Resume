@@ -116,11 +116,21 @@ def score_parseability(document: ResumeDocument) -> tuple[ParseabilityResult, di
     if resume.basics.name is None or resume.basics.email is None:
         score = min(score, 55.0)
 
+    fidelity = document.parse_fidelity or {}
+    agreement = fidelity.get("agreement")
+    extractors = fidelity.get("extractors") or []
+    display_issues = [f"{issue.severity}: {issue.message}" for issue in issues][:12]
+    if isinstance(agreement, (int, float)) and agreement < 0.85 and len(extractors) >= 2:
+        display_issues.insert(
+            0,
+            f"warning: independent PDF extractors agree on only {agreement:.0%} of tokens.",
+        )
+
     result = ParseabilityResult(
         score=round(max(0.0, min(100.0, score)), 2),
         field_recall=round(field_recall, 1),
         missing_fields=missing_fields,
-        issues=[f"{issue.severity}: {issue.message}" for issue in issues][:12],
+        issues=display_issues,
         headings_found=headings_found,
     )
     return result, {
@@ -130,8 +140,15 @@ def score_parseability(document: ResumeDocument) -> tuple[ParseabilityResult, di
         "contact_in_header": contact_in_header,
         "issue_penalty": round(penalty, 1),
         "issues": result.issues,
+        "extractors": extractors,
+        "extractor_agreement": agreement,
         "extractor_note": (
-            "Parse fidelity is measured against the text this engine extracted. "
-            "Different ATS vendors may extract differently."
+            "Parse fidelity is measured by comparing independent PDF extractors. "
+            "Different ATS vendors may still extract differently."
+            if len(extractors) >= 2
+            else (
+                "Parse fidelity is measured against the text this engine extracted. "
+                "Different ATS vendors may extract differently."
+            )
         ),
     }

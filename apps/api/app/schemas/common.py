@@ -61,6 +61,7 @@ class MetaResponse(BaseModel):
     match_tiers: dict[str, float]
     embedding_model: str
     llm_provider: str
+    latex_compile: dict[str, Any] = Field(default_factory=dict)
     phase: str = "1"
 
 

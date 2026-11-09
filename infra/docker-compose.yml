@@ -24,6 +24,37 @@ services:
     ports:
       - "6379:6379"
 
+  # Sandboxed LaTeX compiler. The API talks to it over the internal-only
+  # `latex_internal` network; the worker has no route to the internet.
+  latex_worker:
+    build:
+      context: ../services/latex_worker
+    environment:
+      WORKER_PORT: "8099"
+      WORKER_TIMEOUT_SECONDS: "45"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    networks:
+      - latex_internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
   api:
     build:
       context: ../apps/api
@@ -35,6 +66,14 @@ services:
       ATS_STORAGE_DIR: /data/uploads
       ATS_LLM_PROVIDER: stub
       ATS_API_KEY: ${ATS_API_KEY:-}
+      # Compilation is opt-in. Set ATS_LATEX_COMPILE_ENABLED=true to enable the
+      # sandboxed worker; ingestion still falls back to static analysis when it
+      # is disabled or unavailable.
+      ATS_LATEX_COMPILE_ENABLED: ${ATS_LATEX_COMPILE_ENABLED:-false}
+      ATS_LATEX_COMPILE_ENGINE: auto
+      ATS_LATEX_WORKER_URL: http://latex_worker:8099
+      ATS_LATEX_COMPILE_TIMEOUT_SECONDS: "60"
+      ATS_OCR_ENABLED: ${ATS_OCR_ENABLED:-false}
     ports:
       - "8000:8000"
     volumes:
@@ -42,6 +81,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - default
+      - latex_internal
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
@@ -63,3 +105,9 @@ services:
 volumes:
   pgdata:
   uploads:
+
+networks:
+  # `internal: true` removes the default gateway, so the worker can only be
+  # reached by containers attached to this network (the API).
+  latex_internal:
+    internal: true

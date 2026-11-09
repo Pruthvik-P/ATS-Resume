@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.schemas.latex import LatexIssue, LatexReport
 
@@ -12,20 +12,43 @@ _TEXT_MACROS = {
     "resumeItem": 1,
     "resumeSubItem": 1,
     "resumeSubheading": 4,
+    "resumeSubHeading": 4,
     "resumeProjectHeading": 3,
     "resumeSubSubheading": 2,
+    "resumeHeading": 1,
+    "resumeTitling": 1,
+    "resumeSubHeadingListStart": 0,
+    "resumeSubHeadingListEnd": 0,
+    "resumeItemListStart": 0,
+    "resumeItemListEnd": 0,
+    "cvsection": 1,
     "cvitem": 2,
     "cventry": 4,
+    "cvevent": 4,
+    "cvskill": 2,
     "cvlistitem": 1,
+    "cvname": 1,
+    "cvtitle": 1,
     "datedsubsection": 2,
     "name": 1,
     "address": 1,
     "position": 1,
+    "heading": 1,
+    "subheading": 1,
+    "jobtitle": 1,
+    "company": 1,
+    "dates": 1,
+    "location": 1,
+    "contact": 1,
     "quote": 1,
     "item": 0,
 }
 
-_SECURITY_PATTERNS: tuple[tuple[str, str, str], ...] = (    ("write18", r"\\write18", "error"),
+_STRUCTURAL_RE = "|".join(sorted(_TEXT_MACROS, key=len, reverse=True))
+
+
+_SECURITY_PATTERNS: tuple[tuple[str, str, str], ...] = (
+    ("write18", r"\\write18", "error"),
     ("shell_escape", r"\\usepackage(?:\[[^\]]*\])?\{shellesc\}", "error"),
     ("immediate_write", r"\\immediate\s*\\write", "error"),
     ("openout", r"\\openout", "error"),
@@ -65,6 +88,48 @@ _DATE_LIKE_RE = re.compile(
 
 def _is_date_like(value: str) -> bool:
     return bool(_DATE_LIKE_RE.match(value.strip()))
+
+
+@dataclass
+class PreambleFixResult:
+    source: str
+    applied: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+
+
+def apply_preamble_fixes(tex: str) -> PreambleFixResult:
+    """Insert the ATS-safe pdfLaTeX preamble lines the report recommends.
+
+    This is intentionally conservative: it only adds missing font-encoding and
+    ToUnicode declarations. It never rewrites the user's layout or removes
+    packages, because those changes can break a working template.
+    """
+
+    match = re.search(
+        r"(?m)^[ \t]*\\documentclass(?:\[[^\]]*\])?\{[^}]*\}[^\n]*(?:\n|$)",
+        tex,
+    )
+    if not match:
+        return PreambleFixResult(source=tex, skipped=["\\documentclass not found"])
+
+    uses_pdflatex = "fontspec" not in tex
+    additions: list[str] = []
+    if uses_pdflatex and not re.search(
+        r"\\usepackage(?:\[[^\]]*\])?\{fontenc\}", tex
+    ):
+        additions.append("\\usepackage[T1]{fontenc}")
+    if uses_pdflatex and "glyphtounicode" not in tex:
+        additions.append("\\input{glyphtounicode}")
+    if uses_pdflatex and "pdfgentounicode" not in tex:
+        additions.append("\\pdfgentounicode=1")
+
+    if not additions:
+        return PreambleFixResult(source=tex)
+
+    insertion = "".join(f"{line}\n" for line in additions)
+    patched = tex[: match.end()] + insertion + tex[match.end() :]
+    return PreambleFixResult(source=patched, applied=additions)
+
 
 
 def strip_comments(tex: str) -> str:
@@ -143,15 +208,33 @@ def latex_to_text(tex: str) -> str:
         name = match.group(1)
         rest = match.group(2)
         groups = [content for _, content in _balanced_groups(rest)]
-        if name in {"section", "subsection", "subsubsection"}:
+        if name in {
+            "section",
+            "subsection",
+            "subsubsection",
+            "cvsection",
+            "heading",
+            "subheading",
+            "resumeHeading",
+            "resumeTitling",
+        }:
             return "\n## " + (groups[0] if groups else "") + "\n"
-        if name in {"resumeSubheading", "cventry"}:
+        if name in {"resumeSubheading", "resumeSubHeading", "cventry", "cvevent"}:
             if len(groups) >= 4 and _is_date_like(groups[-2]) and _is_date_like(groups[-1]):
                 head = " | ".join(groups[:-2])
                 return f"\n{head} | {groups[-2]} - {groups[-1]}\n"
             return "\n" + " | ".join(groups) + "\n"
-        if name in {"resumeProjectHeading", "resumeSubSubheading", "datedsubsection"}:
+        if name in {
+            "resumeProjectHeading",
+            "resumeSubSubheading",
+            "datedsubsection",
+            "jobtitle",
+        }:
             return "\n" + " | ".join(groups) + "\n"
+        if name in {"cvitem", "cvskill"}:
+            if len(groups) >= 2:
+                return f"\n- {groups[0]}: {groups[1]}\n"
+            return "\n- " + " | ".join(groups) + "\n"
         if name in {"resumeItem", "resumeSubItem", "cvlistitem"}:
             return "\n- " + (groups[0] if groups else "") + "\n"
         if name == "item":
@@ -159,8 +242,7 @@ def latex_to_text(tex: str) -> str:
         return "\n" + (groups[0] if groups else "") + "\n"
 
     body = re.sub(
-        r"\\(section|subsection|subsubsection|resumeItem|resumeSubItem|resumeSubheading|"
-        r"resumeProjectHeading|resumeSubSubheading|cvitem|cventry|cvlistitem|item|name|address|position)\*?"
+        rf"\\(?P<name>{_STRUCTURAL_RE})\*?"
         r"((?:\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})+)",
         structural,
         body,

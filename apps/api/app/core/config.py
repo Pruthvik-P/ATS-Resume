@@ -67,6 +67,18 @@ class Settings(BaseSettings):
     # Deterministic hashing embedder dimension. Swap for bge/e5 in Phase 2.
     embedding_dim: int = 512
 
+    # Phase 2 LaTeX pipeline. Compilation is opt-in; when disabled or when no
+    # engine is available, ingestion falls back to static LaTeX analysis.
+    latex_compile_enabled: bool = False
+    latex_compile_engine: Literal["auto", "docker", "local"] = "auto"
+    latex_worker_url: str | None = None
+    latex_worker_image: str = "ats-latex-worker:latest"
+    latex_compile_timeout_seconds: float = 60.0
+    latex_max_output_bytes: int = 20 * 1024 * 1024
+
+    # Optional OCR fallback for scanned PDFs. Requires Tesseract + pytesseract.
+    ocr_enabled: bool = False
+
     scoring_weights: ScoringWeights = Field(default_factory=ScoringWeights)
     must_have_cap: float = 70.0
     parse_fidelity_cap: float = 60.0

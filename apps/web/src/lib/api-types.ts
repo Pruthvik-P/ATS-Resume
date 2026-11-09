@@ -276,6 +276,7 @@ export interface ChangeDecisionResponse {
   version_id?: string | null;
   score_id?: string | null;
   snapshot_url?: string | null;
+  pdf_url?: string | null;
   previous_status?: ChangeStatus | null;
   idempotent_replay?: boolean;
 }
