@@ -23,6 +23,9 @@ postgres = ["psycopg[binary]>=3.2", "pgvector>=0.3"]
 pdf = ["pymupdf>=1.24"]
 ocr = ["pymupdf>=1.24", "pytesseract>=0.3.13", "pillow>=10.4"]
 nlp = ["rapidfuzz>=3.9", "scikit-learn>=1.5"]
+embeddings = ["sentence-transformers>=3.0"]
+spacy = ["spacy>=3.7"]
+redis = ["redis>=5.0"]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

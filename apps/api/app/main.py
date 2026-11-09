@@ -20,6 +20,7 @@ from app.core.errors import (
 )
 from app.core.logging import configure_logging, get_logger, request_id_var
 from app.db.session import dispose_db, init_db
+from app.taxonomy.skills import load_configured_taxonomies
 
 logger = get_logger(__name__)
 
@@ -28,7 +29,11 @@ logger = get_logger(__name__)
 async def lifespan(_: FastAPI):
     configure_logging(logging.DEBUG if settings.debug else logging.INFO)
     await init_db()
-    logger.info("Service starting", extra={"environment": settings.environment})
+    loaded = load_configured_taxonomies()
+    logger.info(
+        "Service starting",
+        extra={"environment": settings.environment, "taxonomy_records": loaded},
+    )
     yield
     await dispose_db()
     logger.info("Service stopped")

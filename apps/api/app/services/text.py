@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from difflib import SequenceMatcher
 
 _WORD_RE = re.compile(r"[a-z0-9+#.]+", re.IGNORECASE)
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
@@ -115,6 +116,79 @@ def normalize_whitespace(text: str) -> str:
 def contains_phrase(haystack: str, needle: str) -> bool:
     escaped = re.escape(needle.strip())
     return re.search(rf"(?<![a-z0-9]){escaped}(?![a-z0-9])", haystack, re.IGNORECASE) is not None
+
+
+def fuzzy_ratio(left: str, right: str) -> float:
+    """Return a 0-100 similarity ratio, using rapidfuzz when installed."""
+
+    try:
+        from rapidfuzz.fuzz import ratio  # type: ignore[import-not-found]
+
+        return float(ratio(left.lower(), right.lower()))
+    except Exception:
+        return SequenceMatcher(None, left.lower(), right.lower()).ratio() * 100
+
+
+def fuzzy_contains(haystack: str, needle: str, threshold: int = 88) -> bool:
+    """Typo-tolerant phrase matching over token windows."""
+
+    needle_tokens = tokenize(needle)
+    haystack_tokens = tokenize(haystack)
+    if not needle_tokens or not haystack_tokens:
+        return False
+    width = max(1, len(needle_tokens))
+    target = " ".join(needle_tokens)
+    for index in range(max(1, len(haystack_tokens) - width + 1)):
+        window = " ".join(haystack_tokens[index : index + width])
+        if fuzzy_ratio(window, target) >= threshold:
+            return True
+    # Also compare against single tokens for one-word skills.
+    if width == 1:
+        return any(fuzzy_ratio(token, target) >= threshold for token in haystack_tokens)
+    return False
+
+
+_SPACY_NLP: object | None = None
+_SPACY_LOADED = False
+
+
+def _spacy_pipeline():
+    global _SPACY_NLP, _SPACY_LOADED
+    from app.core.config import settings
+
+    if not settings.spacy_enabled:
+        return None
+    if _SPACY_LOADED:
+        return _SPACY_NLP
+    _SPACY_LOADED = True
+    try:
+        import spacy  # type: ignore[import-not-found]
+
+        _SPACY_NLP = spacy.load(settings.spacy_model)
+    except Exception:
+        _SPACY_NLP = None
+    return _SPACY_NLP
+
+
+def reset_spacy() -> None:
+    """Clear the optional spaCy model cache (used by tests)."""
+
+    global _SPACY_NLP, _SPACY_LOADED
+    _SPACY_NLP = None
+    _SPACY_LOADED = False
+
+
+def lemmatize(text: str) -> list[str]:
+    """Lemmatize when spaCy is enabled, otherwise use the deterministic stemmer."""
+
+    pipeline = _spacy_pipeline()
+    if pipeline is not None:
+        return [
+            token.lemma_.lower()
+            for token in pipeline(text)  # type: ignore[operator]
+            if token.is_alpha and not token.is_stop and len(token.lemma_) > 1
+        ]
+    return [stem(token) for token in content_tokens(text)]
 
 
 _NUMBER_RE = re.compile(r"\b\d[\d,.]*\s*(?:%|x|k|m|bn|b|million|billion|thousand)?\b", re.I)

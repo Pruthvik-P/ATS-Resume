@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.core.config import settings
 from app.schemas.jd import JDAnalysis, SkillRequirement
 from app.schemas.resume import Resume
-from app.services.scoring.embedding import LEXICAL_FALLBACK_THRESHOLD, similarity
-from app.services.text import contains_phrase
+from app.services.scoring.embedding import semantic_fallback_threshold, similarity
+from app.services.text import contains_phrase, fuzzy_contains
 from app.taxonomy.skills import find_skills
 
 EXACT_CREDIT = 1.0
 ALIAS_CREDIT = 0.95
 SEMANTIC_CREDIT = 0.60
+FUZZY_CREDIT = 0.50
 SKILLS_ONLY_MULTIPLIER = 0.7
 
 
@@ -89,18 +91,30 @@ def _match_requirement(
             evidence="Listed in the skills section without supporting experience evidence.",
         )
 
-    # 3. Semantic fallback for paraphrases ("container orchestration" → Kubernetes).
+    # 3. Typo-tolerant fallback ("Kubernetees" → Kubernetes).
+    if settings.fuzzy_matching_enabled and len(canonical) >= 4:
+        for _location, text in bullets:
+            if fuzzy_contains(text, canonical, settings.fuzzy_threshold):
+                return SkillEvidence(
+                    skill=canonical,
+                    credit=FUZZY_CREDIT,
+                    location="fuzzy_fallback",
+                    evidence=text[:200],
+                )
+
+    # 4. Semantic fallback for paraphrases ("container orchestration" → Kubernetes).
     best_similarity = 0.0
     best_text = ""
+    threshold = semantic_fallback_threshold()
     for _location, text in bullets:
         value = similarity(text, canonical)
         if value > best_similarity:
             best_similarity = value
             best_text = text
-    if best_similarity >= LEXICAL_FALLBACK_THRESHOLD:
+    if best_similarity >= threshold:
         return SkillEvidence(
             skill=canonical,
-            credit=round(SEMANTIC_CREDIT * best_similarity / max(LEXICAL_FALLBACK_THRESHOLD, 1e-6) / 2, 3),
+            credit=round(SEMANTIC_CREDIT * best_similarity / max(threshold, 1e-6) / 2, 3),
             location="semantic_fallback",
             evidence=best_text[:200],
         )

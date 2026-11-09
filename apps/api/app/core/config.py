@@ -63,9 +63,58 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_base_url: str | None = None
     llm_timeout_seconds: float = 45.0
+    llm_max_output_tokens: int = 2000
+    llm_max_retries: int = 2
+    llm_retry_backoff_seconds: float = 0.5
+    llm_input_cost_per_million: float = 0.0
+    llm_output_cost_per_million: float = 0.0
+    llm_trace_enabled: bool = True
+    llm_structuring_enabled: bool = False
+    llm_judge_enabled: bool = False
+    llm_judge_blend_weight: float = 0.0
+    prompt_version: str = "rewriter-v1"
 
-    # Deterministic hashing embedder dimension. Swap for bge/e5 in Phase 2.
+    # Deterministic hashing embedder dimension and optional trained embedder.
+    # Trained embeddings are opt-in so the suite stays installable offline.
     embedding_dim: int = 512
+    embedding_provider: Literal["hashed", "sentence-transformers"] = "hashed"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_cache_size: int = 4096
+    embedding_store_enabled: bool = True
+    embedding_store_backend: Literal["json", "pgvector"] = "json"
+    # Dimension of the Postgres `vector` column. Set this to the trained model's
+    # dimension (for example 384 for bge-small) before running the pgvector migration.
+    embedding_vector_dim: int = 512
+    semantic_low: float | None = None
+    semantic_high: float | None = None
+    reranker_enabled: bool = False
+    reranker_model: str = "BAAI/bge-reranker-base"
+    reranker_weight: float = 0.5
+    bm25_weight: float = 0.0
+    fuzzy_matching_enabled: bool = True
+    fuzzy_threshold: int = 88
+    spacy_enabled: bool = False
+    spacy_model: str = "en_core_web_sm"
+
+    # Optional external skills taxonomy files (JSON or CSV) and cache config.
+    taxonomy_paths: str | None = None
+    taxonomy_version: str = "curated-v1"
+    jd_cache_backend: Literal["memory", "redis"] = "memory"
+    redis_url: str | None = None
+    jd_cache_ttl_seconds: int = 3600
+    jd_cache_max_entries: int = 512
+
+    # Calibration is opt-in. The shipped calibration is an identity mapping.
+    calibration_enabled: bool = False
+    calibration_path: str | None = None
+    calibration_blend_weight: float = 0.0
+
+    # Remove name/contact/protected-attribute signals from the text used for
+    # semantic/keyword scoring while keeping the original for parseability.
+    fairness_redaction_enabled: bool = True
+
+    # Preview tailoring against several JDs in one request.
+    multi_jd_max_targets: int = 5
 
     # Phase 2 LaTeX pipeline. Compilation is opt-in; when disabled or when no
     # engine is available, ingestion falls back to static LaTeX analysis.

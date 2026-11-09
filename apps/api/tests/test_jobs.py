@@ -24,6 +24,9 @@ async def test_optimise_job_produces_verified_proposals(client):
     result = job["result"]
     assert result["baseline_score"] <= 70.0
     assert result["proposals"]
+    assert result["model_versions"]["scoring"] == "scoring-v2"
+    assert "taxonomy" in result["model_versions"]
+    assert result["model_versions"]["fairness"] == "redaction-v1"
 
     kinds = {proposal["kind"] for proposal in result["proposals"]}
     assert "rewrite_bullet" in kinds or "reorder_skills" in kinds

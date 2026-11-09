@@ -7,7 +7,7 @@ never invent a fact to raise a score.
 - [`ats-resume-optimizer-architecture.md`](ats-resume-optimizer-architecture.md)
   — product, system design, scoring model, roadmap.
 - [`apps/web`](apps/web) — Next.js landing page and intake UI.
-- [`apps/api`](apps/api) — FastAPI gateway and Phase 1 engine.
+- [`apps/api`](apps/api) — FastAPI gateway and Phase 2 LaTeX + AI/NLP engine.
 - [`pending.md`](pending.md) — remaining work against the architecture doc.
 - [`infra/docker-compose.yml`](infra/docker-compose.yml) — Postgres + Redis + API + web UI + LaTeX worker.
 - [`services/latex_worker`](services/latex_worker) — sandboxed TeX Live compile worker.
@@ -36,7 +36,7 @@ Then open **<http://localhost:3000/start>**.
 | Web UI | <http://localhost:3000> | Next.js; browser calls `/api/backend/*` on this origin |
 | API | <http://localhost:8000> · [docs](http://localhost:8000/docs) | FastAPI; runs `alembic upgrade head` on boot |
 | Postgres | `localhost:5432` | user/password/database: `ats` / `ats` / `ats` |
-| Redis | `localhost:6379` | reserved for Phase 2; the API does not use it yet |
+| Redis | `localhost:6379` | optional JD analysis cache; Durable queue still future work |
 | LaTeX worker | internal only | sandboxed compile worker; enable with `ATS_LATEX_COMPILE_ENABLED=true` |
 
 ### Day-to-day commands
@@ -145,6 +145,13 @@ server-side — do not rename it with a `NEXT_PUBLIC_` prefix.
 If the engine is not running, the intake UI shows the connection error instead
 of a fake result.
 
+
+The API also ships an opt-in Phase 2 AI/NLP track: schema-validated LLM structuring,
+a bounded LLM judge, trained embeddings and a cross-encoder reranker behind optional
+extras, BM25/typo-tolerant matching, runtime taxonomy loading, memory/Redis JD caching,
+calibration, fairness redaction, and multi-JD tailoring previews. The deterministic
+hashed embeddings and heuristic structurer remain the default, so the offline test
+suite is reproducible.
 
 ## Verify the backend
 

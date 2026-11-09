@@ -17,6 +17,7 @@ from app.core.ratelimit import reset_rate_limits  # noqa: E402
 from app.db.models import Base  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.jd_cache import reset_jd_cache  # noqa: E402
 
 SAMPLE_TEX = r"""
 \documentclass[11pt,letterpaper]{article}
@@ -74,6 +75,7 @@ Must be authorized to work in the US. No visa sponsorship available.
 @pytest_asyncio.fixture
 async def client():
     reset_rate_limits()
+    reset_jd_cache()
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
         await connection.run_sync(Base.metadata.create_all)

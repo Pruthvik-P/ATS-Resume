@@ -20,6 +20,9 @@ async def test_meta_documents_weights(client):
     assert body["latex_compile"]["enabled"] is False
     assert body["latex_compile"]["engine"] == "auto"
     assert body["latex_compile"]["ocr_enabled"] is False
+    assert body["ai"]["embedding_provider"] == "hashed"
+    assert body["ai"]["fairness_redaction_enabled"] is True
+    assert body["ai"]["taxonomy_version"]
 
 
 async def test_api_key_required_when_configured(client, monkeypatch):

@@ -34,6 +34,10 @@ async def test_score_report_is_explainable_and_capped(client):
     assert report["breakdown"]["parseability"]["field_recall"] > 80
     assert report["weights"]["keyword_match"] == 0.30
     assert report["model_versions"]["embedding"] == "hashed-ngram-v1"
+    assert report["model_versions"]["scoring"] == "scoring-v2"
+    assert report["model_versions"]["taxonomy"]
+    assert report["model_versions"]["fairness"] == "redaction-v1"
+    assert report["scoring_version"] == "scoring-v2"
 
     types = {item["type"] for item in report["recommendations"]}
     assert "missing_skill" in types
@@ -75,3 +79,32 @@ async def test_score_missing_resume_returns_404(client):
         json={"resume_id": "00000000-0000-0000-0000-000000000000", "jd_id": jd["id"]},
     )
     assert response.status_code == 404
+
+
+async def test_score_records_llm_judge_when_configured(client, monkeypatch):
+    async def fake_judge(document, analysis, report, *, provider=None):
+        return {
+            "advisory_score": 88.0,
+            "adjustment": 2.0,
+            "confidence": 0.9,
+            "strengths": ["FastAPI evidence"],
+            "gaps": ["Terraform"],
+            "rationale": "Good match with one gap.",
+            "provider": "fake",
+            "model": "fake-judge",
+            "prompt_version": "judge-v1",
+            "usage": {},
+        }
+
+    monkeypatch.setattr("app.api.v1.score.run_llm_judge", fake_judge)
+    resume = await upload_sample(client)
+    jd = await create_sample_jd(client)
+    response = await client.post(
+        "/v1/score", json={"resume_id": resume["id"], "jd_id": jd["id"]}
+    )
+    assert response.status_code == 201, response.text
+    report = response.json()
+    assert report["judge"]["advisory_score"] == 88.0
+    assert report["judge"]["provider"] == "fake"
+    assert report["model_versions"]["judge"] == "fake:fake-judge"
+    assert report["model_versions"]["judge_prompt"] == "judge-v1"

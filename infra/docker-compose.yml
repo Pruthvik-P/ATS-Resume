@@ -74,6 +74,15 @@ services:
       ATS_LATEX_WORKER_URL: http://latex_worker:8099
       ATS_LATEX_COMPILE_TIMEOUT_SECONDS: "60"
       ATS_OCR_ENABLED: ${ATS_OCR_ENABLED:-false}
+      # Phase 2 AI/NLP. Trained embeddings/rerankers are opt-in images/extras.
+      ATS_LLM_STRUCTURING_ENABLED: ${ATS_LLM_STRUCTURING_ENABLED:-false}
+      ATS_LLM_JUDGE_ENABLED: ${ATS_LLM_JUDGE_ENABLED:-false}
+      ATS_EMBEDDING_PROVIDER: ${ATS_EMBEDDING_PROVIDER:-hashed}
+      ATS_EMBEDDING_STORE_BACKEND: ${ATS_EMBEDDING_STORE_BACKEND:-json}
+      ATS_JD_CACHE_BACKEND: ${ATS_JD_CACHE_BACKEND:-memory}
+      ATS_REDIS_URL: redis://redis:6379/0
+      ATS_FAIRNESS_REDACTION_ENABLED: ${ATS_FAIRNESS_REDACTION_ENABLED:-true}
+      ATS_MULTI_JD_MAX_TARGETS: ${ATS_MULTI_JD_MAX_TARGETS:-5}
     ports:
       - "8000:8000"
     volumes:
@@ -81,6 +90,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - default
       - latex_internal
